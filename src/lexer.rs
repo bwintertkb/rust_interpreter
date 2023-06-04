@@ -7,6 +7,7 @@ pub enum Token {
     Float(f64),
     Assign,
     Plus,
+    Minus,
     Multiply,
     Divide,
     Comma,
@@ -43,6 +44,7 @@ impl Token {
             && !Token::is_special_char(c)
             && !Token::is_numeric(c)
             && !Token::is_end(c)
+            && !Token::is_space(c)
     }
 
     fn is_dot(c: char) -> bool {
@@ -57,6 +59,7 @@ impl Token {
         match c {
             '=' => Token::Assign,
             '+' => Token::Plus,
+            '-' => Token::Minus,
             '*' => Token::Multiply,
             '/' => Token::Divide,
             ',' => Token::Comma,
@@ -97,6 +100,7 @@ impl From<&str> for Token {
         match s {
             "=" => Token::Assign,
             "+" => Token::Plus,
+            "-" => Token::Minus,
             "*" => Token::Multiply,
             "/" => Token::Divide,
             "," => Token::Comma,
@@ -169,6 +173,9 @@ impl Lexer {
 
     fn next_token(&mut self) -> Token {
         let mut char_buffer: Vec<u8> = Vec::with_capacity(self.input.len());
+        while Token::is_space(self.ch as char) && !Token::is_end(self.ch as char) {
+            self.read_char();
+        }
         if Token::is_special_char(self.ch as char) {
             char_buffer.push(self.ch);
             let str_ = String::from_utf8(char_buffer).unwrap();
@@ -189,7 +196,6 @@ impl Lexer {
             }
             let str_ = String::from_utf8(char_buffer).unwrap();
             let token = Token::from_number(&str_[..]);
-            self.read_char();
             return token;
         }
 
@@ -206,16 +212,13 @@ impl Lexer {
             }
             let str_ = String::from_utf8(char_buffer).unwrap();
             let token = Token::from_chars(&str_[..]);
-            self.read_char();
             return token;
         }
 
-        while Token::is_space(self.ch as char) {
-            self.read_char();
+        if Token::is_end(self.ch as char) {
+            return Token::EOF;
         }
-
-        self.read_char();
-        Token::EOF
+        Token::Illegal
     }
 }
 
@@ -260,7 +263,6 @@ mod tests {
         let expected = [Token::Float(8918.2), Token::EOF];
 
         let mut lexer = Lexer::new(input.to_owned());
-        println!("{:?}", lexer);
         assert_eq!(lexer.tokens(), expected);
     }
 
@@ -271,7 +273,6 @@ mod tests {
         let expected = [Token::Function, Token::EOF];
 
         let mut lexer = Lexer::new(input.to_owned());
-        println!("{:?}", lexer);
         assert_eq!(lexer.tokens(), expected);
     }
 
@@ -282,7 +283,6 @@ mod tests {
         let expected = [Token::Let, Token::EOF];
 
         let mut lexer = Lexer::new(input.to_owned());
-        println!("{:?}", lexer);
         assert_eq!(lexer.tokens(), expected);
     }
 
@@ -291,6 +291,71 @@ mod tests {
         let input = "my_var87a";
 
         let expected = [Token::VarName("my_var87a".to_owned()), Token::EOF];
+
+        let mut lexer = Lexer::new(input.to_owned());
+        assert_eq!(lexer.tokens(), expected);
+    }
+
+    #[test]
+    fn test_next_token_variable_assignment() {
+        let input = "let my_var = 8.2;";
+        let expected = [
+            Token::Let,
+            Token::VarName("my_var".to_owned()),
+            Token::Assign,
+            Token::Float(8.2),
+            Token::Semicolon,
+            Token::EOF,
+        ];
+        let mut lexer = Lexer::new(input.to_owned());
+        assert_eq!(lexer.tokens(), expected);
+    }
+
+    #[test]
+    fn test_function_declaration() {
+        let input = "let add = fn(x, y) {
+    x + y;
+
+};";
+        let expected = [
+            Token::Let,
+            Token::VarName("add".to_owned()),
+            Token::Assign,
+            Token::Function,
+            Token::LParen,
+            Token::VarName("x".to_owned()),
+            Token::Comma,
+            Token::VarName("y".to_owned()),
+            Token::RParen,
+            Token::LBrace,
+            Token::VarName("x".to_owned()),
+            Token::Plus,
+            Token::VarName("y".to_owned()),
+            Token::Semicolon,
+            Token::RBrace,
+            Token::Semicolon,
+            Token::EOF,
+        ];
+        let mut lexer = Lexer::new(input.to_owned());
+        assert_eq!(lexer.tokens(), expected);
+    }
+
+    #[test]
+    fn test_function_call() {
+        let input = "let result =add(five, ten);";
+        let expected = [
+            Token::Let,
+            Token::VarName("result".to_owned()),
+            Token::Assign,
+            Token::VarName("add".to_owned()),
+            Token::LParen,
+            Token::VarName("five".to_owned()),
+            Token::Comma,
+            Token::VarName("ten".to_owned()),
+            Token::RParen,
+            Token::Semicolon,
+            Token::EOF,
+        ];
 
         let mut lexer = Lexer::new(input.to_owned());
         println!("{:?}", lexer);
