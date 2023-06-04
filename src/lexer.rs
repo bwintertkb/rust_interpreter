@@ -18,7 +18,6 @@ pub enum Token {
     RBrace,
     Function,
     Let,
-    VarName(String),
 }
 
 impl Token {
@@ -86,7 +85,7 @@ impl Token {
         match str_ {
             "fn" => Token::Function,
             "let" => Token::Let,
-            _ => Token::VarName(str_.to_owned()),
+            _ => Token::Ident(str_.to_owned()),
         }
     }
 
@@ -290,7 +289,7 @@ mod tests {
     fn test_next_token_variable_name_keyword() {
         let input = "my_var87a";
 
-        let expected = [Token::VarName("my_var87a".to_owned()), Token::EOF];
+        let expected = [Token::Ident("my_var87a".to_owned()), Token::EOF];
 
         let mut lexer = Lexer::new(input.to_owned());
         assert_eq!(lexer.tokens(), expected);
@@ -301,7 +300,7 @@ mod tests {
         let input = "let my_var = 8.2;";
         let expected = [
             Token::Let,
-            Token::VarName("my_var".to_owned()),
+            Token::Ident("my_var".to_owned()),
             Token::Assign,
             Token::Float(8.2),
             Token::Semicolon,
@@ -319,18 +318,18 @@ mod tests {
 };";
         let expected = [
             Token::Let,
-            Token::VarName("add".to_owned()),
+            Token::Ident("add".to_owned()),
             Token::Assign,
             Token::Function,
             Token::LParen,
-            Token::VarName("x".to_owned()),
+            Token::Ident("x".to_owned()),
             Token::Comma,
-            Token::VarName("y".to_owned()),
+            Token::Ident("y".to_owned()),
             Token::RParen,
             Token::LBrace,
-            Token::VarName("x".to_owned()),
+            Token::Ident("x".to_owned()),
             Token::Plus,
-            Token::VarName("y".to_owned()),
+            Token::Ident("y".to_owned()),
             Token::Semicolon,
             Token::RBrace,
             Token::Semicolon,
@@ -345,20 +344,70 @@ mod tests {
         let input = "let result =add(five, ten);";
         let expected = [
             Token::Let,
-            Token::VarName("result".to_owned()),
+            Token::Ident("result".to_owned()),
             Token::Assign,
-            Token::VarName("add".to_owned()),
+            Token::Ident("add".to_owned()),
             Token::LParen,
-            Token::VarName("five".to_owned()),
+            Token::Ident("five".to_owned()),
             Token::Comma,
-            Token::VarName("ten".to_owned()),
+            Token::Ident("ten".to_owned()),
             Token::RParen,
             Token::Semicolon,
             Token::EOF,
         ];
 
         let mut lexer = Lexer::new(input.to_owned());
-        println!("{:?}", lexer);
+        assert_eq!(lexer.tokens(), expected);
+    }
+
+    #[test]
+    fn test_mini_sequence() {
+        let input = "
+let five = 5;
+let ten = 10; 
+let add = fn(x, y) { x + y; };
+let result = add(five, ten);
+";
+        let expected = [
+            Token::Let,
+            Token::Ident("five".to_owned()),
+            Token::Assign,
+            Token::Int(5),
+            Token::Semicolon,
+            Token::Let,
+            Token::Ident("ten".to_owned()),
+            Token::Assign,
+            Token::Int(10),
+            Token::Semicolon,
+            Token::Let,
+            Token::Ident("add".to_owned()),
+            Token::Assign,
+            Token::Function,
+            Token::LParen,
+            Token::Ident("x".to_owned()),
+            Token::Comma,
+            Token::Ident("y".to_owned()),
+            Token::RParen,
+            Token::LBrace,
+            Token::Ident("x".to_owned()),
+            Token::Plus,
+            Token::Ident("y".to_owned()),
+            Token::Semicolon,
+            Token::RBrace,
+            Token::Semicolon,
+            Token::Let,
+            Token::Ident("result".to_owned()),
+            Token::Assign,
+            Token::Ident("add".to_owned()),
+            Token::LParen,
+            Token::Ident("five".to_owned()),
+            Token::Comma,
+            Token::Ident("ten".to_owned()),
+            Token::RParen,
+            Token::Semicolon,
+            Token::EOF,
+        ];
+        let mut lexer = Lexer::new(input.to_owned());
         assert_eq!(lexer.tokens(), expected);
     }
 }
