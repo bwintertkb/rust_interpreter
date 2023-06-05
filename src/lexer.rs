@@ -84,7 +84,7 @@ impl Token {
     }
 
     fn is_special_double_char(c_curr: char, c_next: char) -> bool {
-        (c_curr == '=' && c_next == '=') || (c_curr == '!' && c_next == '=')
+        (c_curr == '!' || c_curr == '=') && c_next == '='
     }
 
     fn from_number(str_: &str) -> Token {
