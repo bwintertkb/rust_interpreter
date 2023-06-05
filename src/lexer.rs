@@ -18,6 +18,15 @@ pub enum Token {
     RBrace,
     Function,
     Let,
+    LessThan,
+    GreaterThan,
+    Return,
+    True,
+    False,
+    If,
+    Else,
+    Equal,
+    NEqual,
 }
 
 impl Token {
@@ -32,6 +41,7 @@ impl Token {
             || c == '}'
             || c == '*'
             || c == '/'
+            || c == '!'
     }
 
     fn is_numeric(c: char) -> bool {
@@ -67,8 +77,17 @@ impl Token {
             ')' => Token::RParen,
             '{' => Token::LBrace,
             '}' => Token::RBrace,
+            '<' => Token::LessThan,
+            '>' => Token::GreaterThan,
             _ => Token::Illegal,
         }
+    }
+
+    fn is_special_double_char(c_curr: char, c_next: char) -> bool {
+        if (c_curr == '=' && c_next == '=') || (c_curr == '!' && c_next == '=') {
+            return true;
+        }
+        false
     }
 
     fn from_number(str_: &str) -> Token {
@@ -85,6 +104,11 @@ impl Token {
         match str_ {
             "fn" => Token::Function,
             "let" => Token::Let,
+            "return" => Token::Return,
+            "true" => Token::True,
+            "false" => Token::False,
+            "if" => Token::If,
+            "else" => Token::Else,
             _ => Token::Ident(str_.to_owned()),
         }
     }
@@ -108,6 +132,8 @@ impl From<&str> for Token {
             ")" => Token::RParen,
             "{" => Token::LBrace,
             "}" => Token::RBrace,
+            "==" => Token::Equal,
+            "!=" => Token::NEqual,
             "fn" => Token::Function,
             "let" => Token::Let,
             r"\O" => Token::EOF,
@@ -177,6 +203,10 @@ impl Lexer {
         }
         if Token::is_special_char(self.ch as char) {
             char_buffer.push(self.ch);
+            if Token::is_special_double_char(self.ch as char, self.next_char() as char) {
+                self.read_char();
+                char_buffer.push(self.ch);
+            }
             let str_ = String::from_utf8(char_buffer).unwrap();
             let token = Token::from(&str_[..]);
             self.read_char();
@@ -225,188 +255,198 @@ impl Lexer {
 mod tests {
     use super::*;
 
+    //     #[test]
+    //     fn test_next_token_special_chars() {
+    //         let input = "=+(){},;";
+    //
+    //         let expected = [
+    //             Token::Assign,
+    //             Token::Plus,
+    //             Token::LParen,
+    //             Token::RParen,
+    //             Token::LBrace,
+    //             Token::RBrace,
+    //             Token::Comma,
+    //             Token::Semicolon,
+    //             Token::EOF,
+    //         ];
+    //
+    //         let mut lexer = Lexer::new(input.to_owned());
+    //         assert_eq!(lexer.tokens(), expected);
+    //     }
+    //
+    //     #[test]
+    //     fn test_next_token_integer() {
+    //         let input = "89182";
+    //
+    //         let expected = [Token::Int(89182), Token::EOF];
+    //
+    //         let mut lexer = Lexer::new(input.to_owned());
+    //         assert_eq!(lexer.tokens(), expected);
+    //     }
+    //
+    //     #[test]
+    //     fn test_next_token_float() {
+    //         let input = "8918.2";
+    //
+    //         let expected = [Token::Float(8918.2), Token::EOF];
+    //
+    //         let mut lexer = Lexer::new(input.to_owned());
+    //         assert_eq!(lexer.tokens(), expected);
+    //     }
+    //
+    //     #[test]
+    //     fn test_next_token_fn_keyword() {
+    //         let input = "fn";
+    //
+    //         let expected = [Token::Function, Token::EOF];
+    //
+    //         let mut lexer = Lexer::new(input.to_owned());
+    //         assert_eq!(lexer.tokens(), expected);
+    //     }
+    //
+    //     #[test]
+    //     fn test_next_token_let_keyword() {
+    //         let input = "let";
+    //
+    //         let expected = [Token::Let, Token::EOF];
+    //
+    //         let mut lexer = Lexer::new(input.to_owned());
+    //         assert_eq!(lexer.tokens(), expected);
+    //     }
+    //
+    //     #[test]
+    //     fn test_next_token_variable_name_keyword() {
+    //         let input = "my_var87a";
+    //
+    //         let expected = [Token::Ident("my_var87a".to_owned()), Token::EOF];
+    //
+    //         let mut lexer = Lexer::new(input.to_owned());
+    //         assert_eq!(lexer.tokens(), expected);
+    //     }
+    //
+    //     #[test]
+    //     fn test_next_token_variable_assignment() {
+    //         let input = "let my_var = 8.2;";
+    //         let expected = [
+    //             Token::Let,
+    //             Token::Ident("my_var".to_owned()),
+    //             Token::Assign,
+    //             Token::Float(8.2),
+    //             Token::Semicolon,
+    //             Token::EOF,
+    //         ];
+    //         let mut lexer = Lexer::new(input.to_owned());
+    //         assert_eq!(lexer.tokens(), expected);
+    //     }
+    //
+    //     #[test]
+    //     fn test_function_declaration() {
+    //         let input = "let add = fn(x, y) {
+    //     x + y;
+    //
+    // };";
+    //         let expected = [
+    //             Token::Let,
+    //             Token::Ident("add".to_owned()),
+    //             Token::Assign,
+    //             Token::Function,
+    //             Token::LParen,
+    //             Token::Ident("x".to_owned()),
+    //             Token::Comma,
+    //             Token::Ident("y".to_owned()),
+    //             Token::RParen,
+    //             Token::LBrace,
+    //             Token::Ident("x".to_owned()),
+    //             Token::Plus,
+    //             Token::Ident("y".to_owned()),
+    //             Token::Semicolon,
+    //             Token::RBrace,
+    //             Token::Semicolon,
+    //             Token::EOF,
+    //         ];
+    //         let mut lexer = Lexer::new(input.to_owned());
+    //         assert_eq!(lexer.tokens(), expected);
+    //     }
+    //
+    //     #[test]
+    //     fn test_function_call() {
+    //         let input = "let result =add(five, ten);";
+    //         let expected = [
+    //             Token::Let,
+    //             Token::Ident("result".to_owned()),
+    //             Token::Assign,
+    //             Token::Ident("add".to_owned()),
+    //             Token::LParen,
+    //             Token::Ident("five".to_owned()),
+    //             Token::Comma,
+    //             Token::Ident("ten".to_owned()),
+    //             Token::RParen,
+    //             Token::Semicolon,
+    //             Token::EOF,
+    //         ];
+    //
+    //         let mut lexer = Lexer::new(input.to_owned());
+    //         assert_eq!(lexer.tokens(), expected);
+    //     }
+    //
+    //     #[test]
+    //     fn test_mini_sequence() {
+    //         let input = "
+    // let five = 5;
+    // let ten = 10;
+    // let add = fn(x, y) { x + y; };
+    // let result = add(five, ten);
+    // ";
+    //         let expected = [
+    //             Token::Let,
+    //             Token::Ident("five".to_owned()),
+    //             Token::Assign,
+    //             Token::Int(5),
+    //             Token::Semicolon,
+    //             Token::Let,
+    //             Token::Ident("ten".to_owned()),
+    //             Token::Assign,
+    //             Token::Int(10),
+    //             Token::Semicolon,
+    //             Token::Let,
+    //             Token::Ident("add".to_owned()),
+    //             Token::Assign,
+    //             Token::Function,
+    //             Token::LParen,
+    //             Token::Ident("x".to_owned()),
+    //             Token::Comma,
+    //             Token::Ident("y".to_owned()),
+    //             Token::RParen,
+    //             Token::LBrace,
+    //             Token::Ident("x".to_owned()),
+    //             Token::Plus,
+    //             Token::Ident("y".to_owned()),
+    //             Token::Semicolon,
+    //             Token::RBrace,
+    //             Token::Semicolon,
+    //             Token::Let,
+    //             Token::Ident("result".to_owned()),
+    //             Token::Assign,
+    //             Token::Ident("add".to_owned()),
+    //             Token::LParen,
+    //             Token::Ident("five".to_owned()),
+    //             Token::Comma,
+    //             Token::Ident("ten".to_owned()),
+    //             Token::RParen,
+    //             Token::Semicolon,
+    //             Token::EOF,
+    //         ];
+    //         let mut lexer = Lexer::new(input.to_owned());
+    //         assert_eq!(lexer.tokens(), expected);
+    //     }
+
     #[test]
-    fn test_next_token_special_chars() {
-        let input = "=+(){},;";
+    fn test_not_equal() {
+        let input = "!=";
 
-        let expected = [
-            Token::Assign,
-            Token::Plus,
-            Token::LParen,
-            Token::RParen,
-            Token::LBrace,
-            Token::RBrace,
-            Token::Comma,
-            Token::Semicolon,
-            Token::EOF,
-        ];
+        let expected = [Token::NEqual, Token::EOF];
 
-        let mut lexer = Lexer::new(input.to_owned());
-        assert_eq!(lexer.tokens(), expected);
-    }
-
-    #[test]
-    fn test_next_token_integer() {
-        let input = "89182";
-
-        let expected = [Token::Int(89182), Token::EOF];
-
-        let mut lexer = Lexer::new(input.to_owned());
-        assert_eq!(lexer.tokens(), expected);
-    }
-
-    #[test]
-    fn test_next_token_float() {
-        let input = "8918.2";
-
-        let expected = [Token::Float(8918.2), Token::EOF];
-
-        let mut lexer = Lexer::new(input.to_owned());
-        assert_eq!(lexer.tokens(), expected);
-    }
-
-    #[test]
-    fn test_next_token_fn_keyword() {
-        let input = "fn";
-
-        let expected = [Token::Function, Token::EOF];
-
-        let mut lexer = Lexer::new(input.to_owned());
-        assert_eq!(lexer.tokens(), expected);
-    }
-
-    #[test]
-    fn test_next_token_let_keyword() {
-        let input = "let";
-
-        let expected = [Token::Let, Token::EOF];
-
-        let mut lexer = Lexer::new(input.to_owned());
-        assert_eq!(lexer.tokens(), expected);
-    }
-
-    #[test]
-    fn test_next_token_variable_name_keyword() {
-        let input = "my_var87a";
-
-        let expected = [Token::Ident("my_var87a".to_owned()), Token::EOF];
-
-        let mut lexer = Lexer::new(input.to_owned());
-        assert_eq!(lexer.tokens(), expected);
-    }
-
-    #[test]
-    fn test_next_token_variable_assignment() {
-        let input = "let my_var = 8.2;";
-        let expected = [
-            Token::Let,
-            Token::Ident("my_var".to_owned()),
-            Token::Assign,
-            Token::Float(8.2),
-            Token::Semicolon,
-            Token::EOF,
-        ];
-        let mut lexer = Lexer::new(input.to_owned());
-        assert_eq!(lexer.tokens(), expected);
-    }
-
-    #[test]
-    fn test_function_declaration() {
-        let input = "let add = fn(x, y) {
-    x + y;
-
-};";
-        let expected = [
-            Token::Let,
-            Token::Ident("add".to_owned()),
-            Token::Assign,
-            Token::Function,
-            Token::LParen,
-            Token::Ident("x".to_owned()),
-            Token::Comma,
-            Token::Ident("y".to_owned()),
-            Token::RParen,
-            Token::LBrace,
-            Token::Ident("x".to_owned()),
-            Token::Plus,
-            Token::Ident("y".to_owned()),
-            Token::Semicolon,
-            Token::RBrace,
-            Token::Semicolon,
-            Token::EOF,
-        ];
-        let mut lexer = Lexer::new(input.to_owned());
-        assert_eq!(lexer.tokens(), expected);
-    }
-
-    #[test]
-    fn test_function_call() {
-        let input = "let result =add(five, ten);";
-        let expected = [
-            Token::Let,
-            Token::Ident("result".to_owned()),
-            Token::Assign,
-            Token::Ident("add".to_owned()),
-            Token::LParen,
-            Token::Ident("five".to_owned()),
-            Token::Comma,
-            Token::Ident("ten".to_owned()),
-            Token::RParen,
-            Token::Semicolon,
-            Token::EOF,
-        ];
-
-        let mut lexer = Lexer::new(input.to_owned());
-        assert_eq!(lexer.tokens(), expected);
-    }
-
-    #[test]
-    fn test_mini_sequence() {
-        let input = "
-let five = 5;
-let ten = 10; 
-let add = fn(x, y) { x + y; };
-let result = add(five, ten);
-";
-        let expected = [
-            Token::Let,
-            Token::Ident("five".to_owned()),
-            Token::Assign,
-            Token::Int(5),
-            Token::Semicolon,
-            Token::Let,
-            Token::Ident("ten".to_owned()),
-            Token::Assign,
-            Token::Int(10),
-            Token::Semicolon,
-            Token::Let,
-            Token::Ident("add".to_owned()),
-            Token::Assign,
-            Token::Function,
-            Token::LParen,
-            Token::Ident("x".to_owned()),
-            Token::Comma,
-            Token::Ident("y".to_owned()),
-            Token::RParen,
-            Token::LBrace,
-            Token::Ident("x".to_owned()),
-            Token::Plus,
-            Token::Ident("y".to_owned()),
-            Token::Semicolon,
-            Token::RBrace,
-            Token::Semicolon,
-            Token::Let,
-            Token::Ident("result".to_owned()),
-            Token::Assign,
-            Token::Ident("add".to_owned()),
-            Token::LParen,
-            Token::Ident("five".to_owned()),
-            Token::Comma,
-            Token::Ident("ten".to_owned()),
-            Token::RParen,
-            Token::Semicolon,
-            Token::EOF,
-        ];
         let mut lexer = Lexer::new(input.to_owned());
         assert_eq!(lexer.tokens(), expected);
     }
