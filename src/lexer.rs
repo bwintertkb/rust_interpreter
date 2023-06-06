@@ -515,4 +515,42 @@ let five = 5; let ten = 10; let add = fn(x, y) { x + y; }; let result = add(five
         let mut lexer = Lexer::new(input.to_owned());
         assert_eq!(lexer.tokens(), expected);
     }
+
+    #[test]
+    fn test_extra_keywords() {
+        let input = "
+if (5 < 10) { return true; } else { return false; } 10 == 10; 10 != 9;
+
+";
+        let expected = [
+            Token::If,
+            Token::LParen,
+            Token::Int(5),
+            Token::LessThan,
+            Token::Int(10),
+            Token::RParen,
+            Token::LBrace,
+            Token::Return,
+            Token::True,
+            Token::Semicolon,
+            Token::RBrace,
+            Token::Else,
+            Token::LBrace,
+            Token::Return,
+            Token::False,
+            Token::Semicolon,
+            Token::RBrace,
+            Token::Int(10),
+            Token::Equal,
+            Token::Int(10),
+            Token::Semicolon,
+            Token::Int(10),
+            Token::NEqual,
+            Token::Int(9),
+            Token::Semicolon,
+            Token::EOF,
+        ];
+        let mut lexer = Lexer::new(input.to_owned());
+        assert_eq!(lexer.tokens(), expected);
+    }
 }
