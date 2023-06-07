@@ -201,7 +201,7 @@ impl Lexer {
         tokens
     }
 
-    fn next_token(&mut self) -> Token {
+    pub fn next_token(&mut self) -> Token {
         let mut char_buffer: Vec<u8> = Vec::with_capacity(self.input.len());
         while Token::is_space(self.ch as char) && !Token::is_end(self.ch as char) {
             self.read_char();
