@@ -18,11 +18,13 @@ pub fn start(mut in_: impl std::io::BufRead, out: &mut impl std::io::Write) {
         }
         let mut lexer = Lexer::new(line);
         let mut token = lexer.next_token();
-        // out.write_all(token.as_bytes()).unwrap();
-        // while token != Token::EOF {
-        //     token = lexer.next_token();
-        //     out.write_all(token.as_bytes()).unwrap();
-        // }
+        let bytes = serde_cbor::to_vec(&token).unwrap();
+        out.write_all(&bytes).unwrap();
+        while token != Token::EOF {
+            token = lexer.next_token();
+            let bytes = serde_cbor::to_vec(&token).unwrap();
+            out.write_all(&bytes).unwrap();
+        }
     }
 }
 
