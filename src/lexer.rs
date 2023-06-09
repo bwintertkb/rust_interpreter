@@ -1,3 +1,7 @@
+use serde::{de::Visitor, Deserialize, Serialize};
+
+const TOKEN_NAME: &str = "Token";
+
 #[derive(Debug, Clone, PartialEq)]
 pub enum Token {
     Illegal,
@@ -265,6 +269,64 @@ impl Lexer {
         Token::Illegal
     }
 }
+
+impl Serialize for Token {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        // https://serde.rs/impl-serialize.html
+        match *self {
+            Token::Illegal => serializer.serialize_unit_variant(TOKEN_NAME, 0, "Illegal"),
+            Token::EOF => serializer.serialize_unit_variant(TOKEN_NAME, 1, "EOF"),
+            Token::Ident(ref s) => serializer.serialize_newtype_variant(TOKEN_NAME, 2, "Ident", s),
+            Token::Int(ref v) => serializer.serialize_newtype_variant(TOKEN_NAME, 3, "Int", v),
+            Token::Float(ref v) => serializer.serialize_newtype_variant(TOKEN_NAME, 4, "Float", v),
+            Token::Assign => serializer.serialize_unit_variant(TOKEN_NAME, 5, "Assign"),
+            Token::Plus => serializer.serialize_unit_variant(TOKEN_NAME, 6, "Plus"),
+            Token::Minus => serializer.serialize_unit_variant(TOKEN_NAME, 7, "Minus"),
+            Token::Multiply => serializer.serialize_unit_variant(TOKEN_NAME, 8, "Multiply"),
+            Token::Divide => serializer.serialize_unit_variant(TOKEN_NAME, 9, "Divide"),
+            Token::Comma => serializer.serialize_unit_variant(TOKEN_NAME, 10, "Comma"),
+            Token::Semicolon => serializer.serialize_unit_variant(TOKEN_NAME, 11, "Semicolon"),
+            Token::LParen => serializer.serialize_unit_variant(TOKEN_NAME, 12, "LParen"),
+            Token::RParen => serializer.serialize_unit_variant(TOKEN_NAME, 13, "RParen"),
+            Token::LBrace => serializer.serialize_unit_variant(TOKEN_NAME, 14, "LBrace"),
+            Token::RBrace => serializer.serialize_unit_variant(TOKEN_NAME, 15, "RBrace"),
+            Token::Function => serializer.serialize_unit_variant(TOKEN_NAME, 16, "Function"),
+            Token::Let => serializer.serialize_unit_variant(TOKEN_NAME, 17, "Let"),
+            Token::LessThan => serializer.serialize_unit_variant(TOKEN_NAME, 18, "LessThan"),
+            Token::GreaterThan => serializer.serialize_unit_variant(TOKEN_NAME, 19, "GreaterThan"),
+            Token::Return => serializer.serialize_unit_variant(TOKEN_NAME, 20, "Return"),
+            Token::True => serializer.serialize_unit_variant(TOKEN_NAME, 21, "True"),
+            Token::False => serializer.serialize_unit_variant(TOKEN_NAME, 22, "False"),
+            Token::If => serializer.serialize_unit_variant(TOKEN_NAME, 23, "If"),
+            Token::Else => serializer.serialize_unit_variant(TOKEN_NAME, 24, "Else"),
+            Token::Equal => serializer.serialize_unit_variant(TOKEN_NAME, 25, "Equal"),
+            Token::NEqual => serializer.serialize_unit_variant(TOKEN_NAME, 26, "NEqual"),
+            Token::Not => serializer.serialize_unit_variant(TOKEN_NAME, 27, "Not"),
+        }
+    }
+}
+
+struct TokenVisitor;
+
+impl<'de> Visitor<'de> for TokenVisitor {
+    type Value = Token;
+
+    fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+        formatter.write_str("Unexpected token")
+    }
+}
+
+// impl Deserialize for Token {
+//     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+//     where
+//         D: serde::Deserializer<'de>,
+//     {
+//         deserializer.deserialize_enum
+//     }
+// }
 
 #[cfg(test)]
 mod tests {

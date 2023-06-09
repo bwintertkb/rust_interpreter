@@ -42,5 +42,12 @@ else { return false; } 10 == 10; 10 != 9;
         let reader = std::io::BufReader::new(input.as_bytes());
         start(reader, &mut write_buffer);
         println!("write_buffer = {:?}", write_buffer);
+        let token: &Token = unsafe {
+            let buffer = &write_buffer.buffer()[..std::mem::size_of::<Token>()];
+            let token: *const Token = std::mem::transmute(buffer.as_ptr());
+            &*token
+        };
+
+        println!("token = {:?}", token);
     }
 }
