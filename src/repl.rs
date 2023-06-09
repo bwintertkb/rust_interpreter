@@ -18,11 +18,11 @@ pub fn start(mut in_: impl std::io::BufRead, out: &mut impl std::io::Write) {
         }
         let mut lexer = Lexer::new(line);
         let mut token = lexer.next_token();
-        out.write_all(token.as_bytes()).unwrap();
-        while token != Token::EOF {
-            token = lexer.next_token();
-            out.write_all(token.as_bytes()).unwrap();
-        }
+        // out.write_all(token.as_bytes()).unwrap();
+        // while token != Token::EOF {
+        //     token = lexer.next_token();
+        //     out.write_all(token.as_bytes()).unwrap();
+        // }
     }
 }
 
@@ -42,12 +42,5 @@ else { return false; } 10 == 10; 10 != 9;
         let reader = std::io::BufReader::new(input.as_bytes());
         start(reader, &mut write_buffer);
         println!("write_buffer = {:?}", write_buffer);
-        let token: &Token = unsafe {
-            let buffer = &write_buffer.buffer()[..std::mem::size_of::<Token>()];
-            let token: *const Token = std::mem::transmute(buffer.as_ptr());
-            &*token
-        };
-
-        println!("token = {:?}", token);
     }
 }

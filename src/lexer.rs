@@ -1,4 +1,7 @@
-use serde::{de::Visitor, Deserialize, Serialize};
+use serde::{
+    de::{VariantAccess, Visitor},
+    Deserialize, Serialize,
+};
 
 const TOKEN_NAME: &str = "Token";
 
@@ -35,16 +38,6 @@ pub enum Token {
 }
 
 impl Token {
-    pub fn as_bytes(&self) -> &[u8] {
-        let bytes = unsafe {
-            ::core::slice::from_raw_parts(
-                (self as *const Token) as *const u8,
-                ::core::mem::size_of::<Token>(),
-            )
-        };
-        bytes
-    }
-
     fn is_special_char(c: char) -> bool {
         c == '='
             || c == '+'
@@ -275,6 +268,7 @@ impl Serialize for Token {
     where
         S: serde::Serializer,
     {
+        println!("serializing token");
         // https://serde.rs/impl-serialize.html
         match *self {
             Token::Illegal => serializer.serialize_unit_variant(TOKEN_NAME, 0, "Illegal"),
@@ -317,20 +311,92 @@ impl<'de> Visitor<'de> for TokenVisitor {
     fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
         formatter.write_str("Unexpected token")
     }
+
+    fn visit_enum<A>(self, data: A) -> Result<Self::Value, A::Error>
+    where
+        A: serde::de::EnumAccess<'de>,
+    {
+        match data.variant()? {
+            ("Illegal", _) => Ok(Token::Illegal),
+            ("EOF", _) => Ok(Token::EOF),
+            ("Ident", val) => Ok(Token::Ident(val.newtype_variant()?)),
+            ("Int", val) => Ok(Token::Int(val.newtype_variant()?)),
+            ("Float", val) => Ok(Token::Float(val.newtype_variant()?)),
+            ("Assign", _) => Ok(Token::Assign),
+            ("Plus", _) => Ok(Token::Plus),
+            ("Minus", _) => Ok(Token::Minus),
+            ("Multiply", _) => Ok(Token::Multiply),
+            ("Divide", _) => Ok(Token::Divide),
+            ("Comma", _) => Ok(Token::Comma),
+            ("Semicolon", _) => Ok(Token::Semicolon),
+            ("LParen", _) => Ok(Token::LParen),
+            ("RParen", _) => Ok(Token::RParen),
+            ("LBrace", _) => Ok(Token::LBrace),
+            ("RBrace", _) => Ok(Token::RBrace),
+            ("Function", _) => Ok(Token::Function),
+            ("Let", _) => Ok(Token::Let),
+            ("LessThan", _) => Ok(Token::LessThan),
+            ("GreaterThan", _) => Ok(Token::GreaterThan),
+            ("Return", _) => Ok(Token::Return),
+            ("True", _) => Ok(Token::True),
+            ("False", _) => Ok(Token::False),
+            ("If", _) => Ok(Token::If),
+            ("Else", _) => Ok(Token::Else),
+            ("Equal", _) => Ok(Token::Equal),
+            ("NEqual", _) => Ok(Token::NEqual),
+            ("Not", _) => Ok(Token::Not),
+            _ => Err(serde::de::Error::invalid_value(
+                serde::de::Unexpected::UnitVariant,
+                &"expected Token variant",
+            )),
+        }
+    }
 }
 
-// impl Deserialize for Token {
-//     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-//     where
-//         D: serde::Deserializer<'de>,
-//     {
-//         deserializer.deserialize_enum
-//     }
-// }
+const TOKEN_VARIANTS: [&str; 28] = [
+    "Illegal",
+    "EOF",
+    "Ident",
+    "Int",
+    "Float",
+    "Assign",
+    "Plus",
+    "Minus",
+    "Multiply",
+    "Divide",
+    "Comma",
+    "Semicolon",
+    "LParen",
+    "RParen",
+    "LBrace",
+    "RBrace",
+    "Function",
+    "Let",
+    "LessThan",
+    "GreaterThan",
+    "Return",
+    "True",
+    "False",
+    "If",
+    "Else",
+    "Equal",
+    "NEqual",
+    "Not",
+];
+
+impl<'de> Deserialize<'de> for Token {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        deserializer.deserialize_enum(TOKEN_NAME, &TOKEN_VARIANTS, TokenVisitor)
+    }
+}
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use serde_cbor;
 
     #[test]
     fn test_next_token_special_chars() {
@@ -624,5 +690,37 @@ if (5 < 10) { return true; } else { return false; } 10 == 10; 10 != 9;
         ];
         let mut lexer = Lexer::new(input.to_owned());
         assert_eq!(lexer.tokens(), expected);
+    }
+
+    #[test]
+    fn test_serialization() {
+        let token = Token::Ident("myvar".to_string());
+        let encoded: Vec<u8> = serde_cbor::to_vec(&token).unwrap();
+        // Here we are not testing for equality with a specific byte sequence,
+        // as the specific output of bincode isn't as human-readable or predictable as JSON.
+        // Just check that serialization was successful (did not return an error).
+        assert!(!encoded.is_empty());
+    }
+
+    #[test]
+    fn test_deserialization() {
+        let token = Token::Ident("myvar".to_string());
+        let encoded: Vec<u8> = serde_cbor::to_vec(&token).unwrap();
+        let decoded: Token = serde_cbor::from_slice(&encoded).unwrap();
+        match decoded {
+            Token::Ident(s) => assert_eq!(s, "myvar"),
+            _ => panic!("Deserialized to incorrect token variant"),
+        }
+    }
+
+    #[test]
+    fn test_round_trip() {
+        let original_token = Token::Ident("myvar".to_string());
+        let encoded: Vec<u8> = serde_cbor::to_vec(&original_token).unwrap();
+        let decoded_token: Token = serde_cbor::from_slice(&encoded).unwrap();
+        match decoded_token {
+            Token::Ident(s) => assert_eq!(s, "myvar"),
+            _ => panic!("Deserialized to incorrect token variant"),
+        }
     }
 }
