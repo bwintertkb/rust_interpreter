@@ -31,6 +31,16 @@ pub enum Token {
 }
 
 impl Token {
+    pub fn as_bytes(&self) -> &[u8] {
+        let bytes = unsafe {
+            ::core::slice::from_raw_parts(
+                (self as *const Token) as *const u8,
+                ::core::mem::size_of::<Token>(),
+            )
+        };
+        bytes
+    }
+
     fn is_special_char(c: char) -> bool {
         c == '='
             || c == '+'

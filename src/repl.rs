@@ -18,18 +18,12 @@ pub fn start(mut in_: impl std::io::BufRead, out: &mut impl std::io::Write) {
         }
         let mut lexer = Lexer::new(line);
         let mut token = lexer.next_token();
-        let bytes = unsafe { any_as_u8_slice(&token) };
-        out.write_all(bytes).unwrap();
+        out.write_all(token.as_bytes()).unwrap();
         while token != Token::EOF {
             token = lexer.next_token();
-            let bytes = unsafe { any_as_u8_slice(&token) };
-            out.write_all(bytes).unwrap();
+            out.write_all(token.as_bytes()).unwrap();
         }
     }
-}
-
-unsafe fn any_as_u8_slice<T: Sized>(p: &T) -> &[u8] {
-    ::core::slice::from_raw_parts((p as *const T) as *const u8, ::core::mem::size_of::<T>())
 }
 
 #[cfg(test)]
