@@ -38,6 +38,39 @@ pub enum Token {
 }
 
 impl Token {
+    pub fn literal(&self) -> String {
+        match self {
+            Token::Illegal => "illegal".to_owned(),
+            Token::EOF => "eof".to_owned(),
+            Token::Ident(v) => v.to_owned(),
+            Token::Int(v) => v.to_string(),
+            Token::Float(v) => v.to_string(),
+            Token::Assign => "=".to_owned(),
+            Token::Plus => "+".to_owned(),
+            Token::Minus => "-".to_owned(),
+            Token::Multiply => "*".to_owned(),
+            Token::Divide => "/".to_owned(),
+            Token::Comma => ",".to_owned(),
+            Token::Semicolon => ";".to_owned(),
+            Token::LParen => "(".to_owned(),
+            Token::RParen => ")".to_owned(),
+            Token::LBrace => "{".to_owned(),
+            Token::RBrace => "}".to_owned(),
+            Token::Function => "fn".to_owned(),
+            Token::Let => "let".to_owned(),
+            Token::LessThan => "<".to_owned(),
+            Token::GreaterThan => ">".to_owned(),
+            Token::Return => "return".to_owned(),
+            Token::True => "true".to_owned(),
+            Token::False => "false".to_owned(),
+            Token::If => "if".to_owned(),
+            Token::Else => "else".to_owned(),
+            Token::Equal => "==".to_owned(),
+            Token::NEqual => "!=".to_owned(),
+            Token::Not => "!".to_owned(),
+        }
+    }
+
     fn is_special_char(c: char) -> bool {
         c == '='
             || c == '+'

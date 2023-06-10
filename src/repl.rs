@@ -18,12 +18,10 @@ pub fn start(mut in_: impl std::io::BufRead, out: &mut impl std::io::Write) {
         }
         let mut lexer = Lexer::new(line);
         let mut token = lexer.next_token();
-        let bytes = serde_cbor::to_vec(&token).unwrap();
-        out.write_all(&bytes).unwrap();
+        out.write_fmt(format_args!("Token:{:?}\n", token)).unwrap();
         while token != Token::EOF {
             token = lexer.next_token();
-            let bytes = serde_cbor::to_vec(&token).unwrap();
-            out.write_all(&bytes).unwrap();
+            out.write_fmt(format_args!("Token:{:?}\n", token)).unwrap();
         }
     }
 }
@@ -40,7 +38,7 @@ mod tests {
 if (5 < 10) { return true; }
 else { return false; } 10 == 10; 10 != 9;
 ";
-        let mut write_buffer = BufWriter::new(Vec::new());
+        let mut write_buffer = std::io::stdout();
         let reader = std::io::BufReader::new(input.as_bytes());
         start(reader, &mut write_buffer);
         println!("write_buffer = {:?}", write_buffer);
