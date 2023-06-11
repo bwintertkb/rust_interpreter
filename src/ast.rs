@@ -90,8 +90,30 @@ impl Node for LetStatement {
 }
 
 #[derive(Debug)]
+pub struct ReturnStatement {
+    token: Token, // The return token.
+    return_value: String,
+}
+
+impl ReturnStatement {
+    pub fn new(return_value: String) -> Self {
+        ReturnStatement {
+            token: Token::Return,
+            return_value,
+        }
+    }
+}
+
+impl Node for ReturnStatement {
+    fn token_literal(&self) -> String {
+        self.token.literal()
+    }
+}
+
+#[derive(Debug)]
 pub enum Statements {
     Let(LetStatement),
+    Return(ReturnStatement),
 }
 
 pub struct ExpressionValue;

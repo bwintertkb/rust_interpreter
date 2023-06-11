@@ -1,5 +1,9 @@
+use std::{error::Error, fmt::Display};
+
 use crate::{
-    ast::{Identifier, LetStatement, Program, Statement, StatementStruct, Statements},
+    ast::{
+        Identifier, LetStatement, Program, ReturnStatement, Statement, StatementStruct, Statements,
+    },
     lexer::{Lexer, Token},
 };
 
@@ -8,6 +12,7 @@ pub struct Parser {
     lexer: Lexer,
     curr_token: Option<Token>,
     peek_token: Option<Token>,
+    errors: Vec<ParseError>,
 }
 
 impl Parser {
@@ -17,6 +22,7 @@ impl Parser {
             lexer,
             curr_token: None,
             peek_token: None,
+            errors: Vec::default(),
         };
 
         parser.next_token();
@@ -52,11 +58,11 @@ impl Parser {
         statements
     }
 
-    pub fn parse_statement(&mut self) -> Option<Statements> {
-        println!("curr_token: {:?}", self.curr_token);
+    pub fn parse_statement(&mut self) -> Result<Statements, ParseError> {
         match self.curr_token {
             Some(Token::Let) => self.parse_let_statements(),
-            _ => None,
+            Some(Token::Return) => self.parse_return_statements(),
+            _ => Err(ParseError::UnexpectedToken),
         }
     }
 
@@ -64,29 +70,41 @@ impl Parser {
         self.curr_token == Some(token)
     }
 
-    pub fn peek_token_is(&self, token: Token) -> bool {
-        matches!((&self.peek_token, &token),(Some(a), b) if std::mem::discriminant(a) == std::mem::discriminant(b))
+    pub fn peek_token_is(&self, token: &Token) -> bool {
+        matches!((&self.peek_token, token),(Some(a), b) if std::mem::discriminant(a) == std::mem::discriminant(b))
+    }
+
+    pub fn peek_err(&mut self, token: &Token) {
+        let err = ParseError::NextExpectedTokenError(
+            token.literal(),
+            self.peek_token.as_ref().unwrap().literal(),
+        );
+        self.errors.push(err);
     }
 
     pub fn expect_peek(&mut self, token: Token) -> bool {
-        if self.peek_token_is(token) {
+        if self.peek_token_is(&token) {
             self.next_token();
             return true;
         }
 
+        self.peek_err(&token);
         false
     }
 
     pub fn parse_program(&mut self) -> Program {
         let mut program = Program::default();
 
-        if self.curr_token.is_none() {
+        if self.curr_token.is_none() || self.curr_token_is(Token::EOF) {
+            self.errors.push(ParseError::NoToken);
             return program;
         }
 
         while !self.curr_token_is(Token::EOF) {
-            if let Some(stmt) = self.parse_statement() {
-                program.statements.push(stmt);
+            match self.parse_statement() {
+                Ok(stmt) => program.statements.push(stmt),
+                // Loop here until we reach semicolon or EOF??
+                Err(e) => self.errors.push(e),
             }
             self.next_token();
         }
@@ -94,9 +112,13 @@ impl Parser {
         program
     }
 
-    pub fn parse_let_statements(&mut self) -> Option<Statements> {
+    pub fn parse_let_statements(&mut self) -> Result<Statements, ParseError> {
         if !self.expect_peek(Token::Ident(String::default())) {
-            return None;
+            let err = ParseError::NextExpectedTokenError(
+                self.curr_token.as_ref().unwrap().literal(),
+                "ident".to_owned(),
+            );
+            return Err(err);
         }
         let curr_token = self.curr_token.clone().unwrap();
         let curr_token_literal = curr_token.literal();
@@ -108,9 +130,54 @@ impl Parser {
             self.next_token();
         }
 
-        Some(Statements::Let(statement))
+        Ok(Statements::Let(statement))
+    }
+
+    pub fn parse_return_statements(&mut self) -> Result<Statements, ParseError> {
+        // if !self.expect_peek(Token::Ident(String::default())) {
+        //     let err = ParseError::NextExpectedTokenError(
+        //         self.curr_token.as_ref().unwrap().literal(),
+        //         "ident".to_owned(),
+        //     );
+        //     return Err(err);
+        // }
+        //
+        let curr_token = self.curr_token.clone().unwrap();
+        let curr_token_literal = curr_token.literal();
+
+        let stmt = ReturnStatement::new("".to_owned());
+        self.next_token();
+
+        while !self.curr_token_is(Token::Semicolon) {
+            self.next_token();
+        }
+
+        Ok(Statements::Return(stmt))
     }
 }
+
+#[derive(Debug)]
+pub enum ParseError {
+    NextExpectedTokenError(String, String),
+    UnexpectedToken,
+    NoToken,
+}
+
+impl Display for ParseError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::NextExpectedTokenError(actual, expected) => write!(
+                f,
+                "Expected token '{}', but received token type '{}'",
+                expected, actual
+            ),
+            Self::UnexpectedToken => write!(f, "Unexpected token"),
+            Self::NoToken => write!(f, "No token"),
+        }
+    }
+}
+
+impl Error for ParseError {}
 
 #[cfg(test)]
 mod tests {
@@ -130,10 +197,11 @@ mod tests {
     #[test]
     fn test_let_statements() {
         let input = "
-let x = 5;
-let y = 10;
-let foobar = 838383;
-";
+        let x = 5;
+        let y = 10;
+        let foobar = 838383;
+    let 7718;
+        ";
 
         let mut parser = Parser::new(input);
         let program = parser.parse_program();
@@ -149,8 +217,45 @@ let foobar = 838383;
         let zipped: Vec<_> = program.statements.iter().zip(tests.iter()).collect();
 
         for (stmt, test) in zipped {
-            let Statements::Let(let_) = stmt;
-            assert_eq!(let_.name.value, test.identifier);
+            if let Statements::Let(let_) = stmt {
+                assert_eq!(let_.name.value, test.identifier);
+            }
+        }
+    }
+
+    #[test]
+    fn test_no_token_err() {
+        let input = "";
+        let mut parser = Parser::new(input);
+        parser.parse_program();
+
+        assert_eq!(parser.errors.len(), 1);
+    }
+
+    #[test]
+    fn test_return_statements() {
+        let input = "
+return 5;
+return 10;
+return 993322;
+";
+        let mut parser = Parser::new(input);
+        let program = parser.parse_program();
+
+        assert!(parser.errors.is_empty());
+
+        let tests: Vec<ExpectedIdentifier> = vec![
+            ExpectedIdentifier::new("".to_owned()),
+            ExpectedIdentifier::new("".to_owned()),
+            ExpectedIdentifier::new("".to_owned()),
+        ];
+
+        let zipped: Vec<_> = program.statements.iter().zip(tests.iter()).collect();
+
+        for (stmt, test) in zipped {
+            if let Statements::Let(let_) = stmt {
+                assert_eq!(let_.name.value, test.identifier);
+            }
         }
     }
 }
