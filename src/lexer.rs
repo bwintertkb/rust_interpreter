@@ -301,7 +301,6 @@ impl Serialize for Token {
     where
         S: serde::Serializer,
     {
-        println!("serializing token");
         // https://serde.rs/impl-serialize.html
         match *self {
             Token::Illegal => serializer.serialize_unit_variant(TOKEN_NAME, 0, "Illegal"),

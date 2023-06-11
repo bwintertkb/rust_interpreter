@@ -1,11 +1,52 @@
-use std::{error::Error, fmt::Display};
+use std::{
+    collections::HashMap,
+    error::Error,
+    fmt::{self, Display},
+};
 
 use crate::{
     ast::{
-        Identifier, LetStatement, Program, ReturnStatement, Statement, StatementStruct, Statements,
+        ExpressionStatement, Identifier, LetStatement, Program, ReturnStatement, StatementStruct,
+        Statements,
     },
     lexer::{Lexer, Token},
 };
+
+type prefix_parse_fn = Box<dyn Fn() -> String>;
+type infix_parse_fn = Box<dyn Fn(String) -> String>;
+
+#[derive(Debug, Copy, Clone)]
+pub enum Iota {
+    // Assign numbers to the order of operations
+    LOWEST = 1,
+    EQUALS = 2,
+    LESSGREATER = 3, // > or <
+    SUM = 4,
+    PRODUCT = 5,
+    PREFIX = 6, // -X or !X
+    CALL = 7,   // my_function(x)
+}
+
+#[derive(Default)]
+struct ParserFunction {
+    prefix_parse_fns: HashMap<String, prefix_parse_fn>,
+    infix_parse_fns: HashMap<String, infix_parse_fn>,
+}
+
+impl fmt::Debug for ParserFunction {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Parser")
+            .field(
+                "prefix_parse_fns",
+                &self.prefix_parse_fns.keys().collect::<Vec<_>>(),
+            )
+            .field(
+                "infix_parse_fns",
+                &self.infix_parse_fns.keys().collect::<Vec<_>>(),
+            )
+            .finish()
+    }
+}
 
 #[derive(Debug)]
 pub struct Parser {
@@ -13,6 +54,7 @@ pub struct Parser {
     curr_token: Option<Token>,
     peek_token: Option<Token>,
     errors: Vec<ParseError>,
+    parser_functions: ParserFunction,
 }
 
 impl Parser {
@@ -23,6 +65,7 @@ impl Parser {
             curr_token: None,
             peek_token: None,
             errors: Vec::default(),
+            parser_functions: ParserFunction::default(),
         };
 
         parser.next_token();
@@ -56,14 +99,6 @@ impl Parser {
         }
 
         statements
-    }
-
-    pub fn parse_statement(&mut self) -> Result<Statements, ParseError> {
-        match self.curr_token {
-            Some(Token::Let) => self.parse_let_statements(),
-            Some(Token::Return) => self.parse_return_statements(),
-            _ => Err(ParseError::UnexpectedToken),
-        }
     }
 
     pub fn curr_token_is(&self, token: Token) -> bool {
@@ -112,6 +147,14 @@ impl Parser {
         program
     }
 
+    pub fn parse_statement(&mut self) -> Result<Statements, ParseError> {
+        match self.curr_token {
+            Some(Token::Let) => self.parse_let_statements(),
+            Some(Token::Return) => self.parse_return_statements(),
+            _ => self.parse_expression_statement(),
+        }
+    }
+
     pub fn parse_let_statements(&mut self) -> Result<Statements, ParseError> {
         if !self.expect_peek(Token::Ident(String::default())) {
             let err = ParseError::NextExpectedTokenError(
@@ -124,7 +167,11 @@ impl Parser {
         let curr_token_literal = curr_token.literal();
         let identifier = Identifier::new(curr_token, curr_token_literal);
         // TODO expressions
-        let statement = LetStatement::new(identifier, "".to_owned());
+        self.next_token();
+        while !self.curr_token_is(Token::Assign) {
+            self.next_token();
+        }
+        let statement = LetStatement::new(identifier, self.curr_token.clone().unwrap());
 
         while !self.curr_token_is(Token::Semicolon) {
             self.next_token();
@@ -153,6 +200,40 @@ impl Parser {
         }
 
         Ok(Statements::Return(stmt))
+    }
+
+    pub fn parse_expression_statement(&mut self) -> Result<Statements, ParseError> {
+        let curr_token = self.curr_token.clone().unwrap();
+
+        let stmt = ExpressionStatement::new(curr_token, Iota::LOWEST);
+
+        if self.peek_token_is(&Token::Semicolon) {
+            self.next_token();
+        }
+
+        Ok(Statements::Expression(stmt))
+    }
+
+    pub fn parse_expression(&mut self, precidence: usize) -> Option<String> {
+        let prefix = self
+            .parser_functions
+            .prefix_parse_fns
+            .get(&self.curr_token.clone().unwrap().literal())?;
+
+        let left_exp = prefix();
+        Some(left_exp)
+    }
+
+    pub fn register_prefix(&mut self, token: &Token, fn_: prefix_parse_fn) {
+        self.parser_functions
+            .prefix_parse_fns
+            .insert(token.literal(), fn_);
+    }
+
+    pub fn register_infix(&mut self, token: &Token, fn_: infix_parse_fn) {
+        self.parser_functions
+            .infix_parse_fns
+            .insert(token.literal(), fn_);
     }
 }
 
@@ -257,5 +338,14 @@ return 993322;
                 assert_eq!(let_.name.value, test.identifier);
             }
         }
+    }
+
+    #[test]
+    fn test_identifier_expression() {
+        let input = "foobar;";
+
+        let mut parser = Parser::new(input);
+        let program = parser.parse_program();
+        println!("{:?}", program);
     }
 }
