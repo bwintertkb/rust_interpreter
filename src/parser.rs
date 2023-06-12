@@ -1,4 +1,4 @@
-use std::{error::Error, fmt::Display};
+use std::{collections::HashMap, error::Error, fmt::Display};
 
 use crate::{
     ast::{
@@ -8,11 +8,18 @@ use crate::{
 };
 
 #[derive(Debug)]
+pub enum ParserFn {
+    Prefix,
+    Infix(String),
+}
+
+#[derive(Debug)]
 pub struct Parser {
     lexer: Lexer,
     curr_token: Option<Token>,
     peek_token: Option<Token>,
     errors: Vec<ParseError>,
+    parser_fn: HashMap<String, fn(&mut Parser) -> String>,
 }
 
 impl Parser {
@@ -23,11 +30,15 @@ impl Parser {
             curr_token: None,
             peek_token: None,
             errors: Vec::default(),
+            parser_fn: HashMap::default(),
         };
 
-        parser.next_token();
-        parser.next_token();
+        parser
+            .parser_fn
+            .insert("test".to_owned(), parse_prefix_expression);
 
+        parser.next_token();
+        parser.next_token();
         parser
     }
 
@@ -154,6 +165,41 @@ impl Parser {
 
         Ok(Statements::Return(stmt))
     }
+
+    //     func (p *Parser) parsePrefixExpression() ast.Expression {
+    // 	expression := &ast.PrefixExpression{
+    // 		Token:    p.curToken,
+    // 		Operator: p.curToken.Literal,
+    // 	}
+    //
+    // 	p.nextToken()
+    //
+    // 	expression.Right = p.parseExpression(PREFIX)
+    //
+    // 	return expression
+    // }
+    //
+    // func (p *Parser) parseInfixExpression(left ast.Expression) ast.Expression {
+    // 	expression := &ast.InfixExpression{
+    // 		Token:    p.curToken,
+    // 		Operator: p.curToken.Literal,
+    // 		Left:     left,
+    // 	}
+    //
+    // 	precedence := p.curPrecedence()
+    // 	p.nextToken()
+    // 	expression.Right = p.parseExpression(precedence)
+    //
+    // 	return expression
+    // }
+}
+
+fn parse_prefix_expression(p: &mut Parser) -> String {
+    "".to_owned()
+}
+
+fn parse_infix_expression(p: &mut Parser, expression: String) -> String {
+    "".to_owned()
 }
 
 #[derive(Debug)]
