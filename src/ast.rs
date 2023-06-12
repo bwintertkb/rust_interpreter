@@ -111,6 +111,23 @@ impl Node for ReturnStatement {
 }
 
 #[derive(Debug)]
+pub struct ExpressionStatement {
+    token: Token,
+}
+
+impl ExpressionStatement {
+    pub fn new(token: Token) -> Self {
+        ExpressionStatement { token }
+    }
+}
+
+impl Node for ExpressionStatement {
+    fn token_literal(&self) -> String {
+        self.token.literal()
+    }
+}
+
+#[derive(Debug)]
 pub enum Statements {
     Let(LetStatement),
     Return(ReturnStatement),

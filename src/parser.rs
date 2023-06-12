@@ -1,16 +1,58 @@
-use std::{collections::HashMap, error::Error, fmt::Display};
+use std::{
+    collections::HashMap,
+    error::Error,
+    fmt::{Debug, Display},
+};
 
 use crate::{
     ast::{
-        Identifier, LetStatement, Program, ReturnStatement, Statement, StatementStruct, Statements,
+        ExpressionStatement, Identifier, LetStatement, Program, ReturnStatement, StatementStruct,
+        Statements,
     },
     lexer::{Lexer, Token},
 };
 
 #[derive(Debug)]
+pub enum Iota {
+    Lowest = 0,
+    Equals = 1,
+    LessGreater = 2,
+    Sum = 3,
+    Product = 4,
+    Prefix = 5,
+    Call = 6,
+}
+
+#[derive(Debug)]
 pub enum ParserFn {
     Prefix,
     Infix(String),
+}
+
+#[derive(Default)]
+pub struct PrefixFns {
+    fns: HashMap<String, fn(&mut Parser) -> ExpressionStatement>,
+}
+
+impl Debug for PrefixFns {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("PrefixFns")
+            .field("fns", &self.fns.len())
+            .finish()
+    }
+}
+
+#[derive(Default)]
+pub struct InfixFns {
+    fns: HashMap<String, fn(&mut Parser, ExpressionStatement) -> ExpressionStatement>,
+}
+
+impl Debug for InfixFns {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("InfixFns")
+            .field("fns", &self.fns.len())
+            .finish()
+    }
 }
 
 #[derive(Debug)]
@@ -19,7 +61,7 @@ pub struct Parser {
     curr_token: Option<Token>,
     peek_token: Option<Token>,
     errors: Vec<ParseError>,
-    parser_fn: HashMap<String, fn(&mut Parser) -> String>,
+    parser_prefix_fn: PrefixFns,
 }
 
 impl Parser {
@@ -30,12 +72,8 @@ impl Parser {
             curr_token: None,
             peek_token: None,
             errors: Vec::default(),
-            parser_fn: HashMap::default(),
+            parser_prefix_fn: PrefixFns::default(),
         };
-
-        parser
-            .parser_fn
-            .insert("test".to_owned(), parse_prefix_expression);
 
         parser.next_token();
         parser.next_token();
