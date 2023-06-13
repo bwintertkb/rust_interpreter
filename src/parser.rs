@@ -77,7 +77,7 @@ impl Parser {
             parser_infix_fn: InfixFns::default(),
         };
 
-        parser.register_prefix(Token::Ident("".to_owned()).literal());
+        parser.register_prefix(Token::Ident("foobar".to_owned()).literal());
 
         parser.next_token();
         parser.next_token();
@@ -116,7 +116,7 @@ impl Parser {
         match self.curr_token {
             Some(Token::Let) => self.parse_let_statements(),
             Some(Token::Return) => self.parse_return_statements(),
-            _ => Err(ParseError::UnexpectedToken),
+            _ => self.parse_expression_statement(),
         }
     }
 
@@ -209,18 +209,30 @@ impl Parser {
         Ok(Statements::Return(stmt))
     }
 
+    pub fn parse_expression_statement(&mut self) -> Result<Statements, ParseError> {
+        let mut stmt = ExpressionStatement::new(self.curr_token.clone().unwrap());
+        stmt.expression = self.parse_expression(Iota::Lowest as usize);
+
+        if self.peek_token_is(&Token::Semicolon) {
+            self.next_token();
+        }
+        Ok(Statements::Expression(stmt))
+    }
+
     pub fn parse_identifier(&self) -> Identifier {
         let curr_token = self.curr_token.as_ref().unwrap();
         Identifier::new(curr_token.clone(), curr_token.literal())
     }
 
     pub fn parse_expression(&mut self, precedence: usize) -> Option<Expressions> {
+        println!("parse_expression: {:?}", self.curr_token);
         let prefix_fn = self
             .parser_prefix_fn
             .fns
             .get(&self.curr_token.as_ref().unwrap().literal())?;
 
         let left_expr = prefix_fn(self);
+        println!("left_expr: {:?}", left_expr);
         Some(left_expr)
     }
 
@@ -265,7 +277,11 @@ impl Parser {
 }
 
 fn parse_prefix_expression(p: &mut Parser) -> Expressions {
-    Expressions::TODO
+    let token = p.curr_token.clone().unwrap();
+    match token {
+        Token::Ident(_) => Expressions::Identifier(p.parse_identifier()),
+        _ => panic!("Not implemented"),
+    }
 }
 
 fn parse_infix_expression(p: &mut Parser, expression: Expressions) -> Expressions {
@@ -297,6 +313,8 @@ impl Error for ParseError {}
 
 #[cfg(test)]
 mod tests {
+    use crate::parser;
+
     use super::*;
 
     #[derive(Debug)]
@@ -322,7 +340,7 @@ mod tests {
         let mut parser = Parser::new(input);
         let program = parser.parse_program();
 
-        assert_eq!(program.statements.len(), 3);
+        assert_eq!(program.statements.len(), 4);
 
         let tests: Vec<ExpectedIdentifier> = vec![
             ExpectedIdentifier::new("x".to_owned()),
@@ -372,6 +390,29 @@ return 993322;
             if let Statements::Let(let_) = stmt {
                 assert_eq!(let_.name.value, test.identifier);
             }
+        }
+    }
+
+    #[test]
+    fn test_identifier_expression() {
+        let input = "foobar;";
+
+        let mut parser = Parser::new(input);
+        let program = parser.parse_program();
+
+        assert!(parser.errors.is_empty());
+        let stmt = &program.statements[0];
+        if let Statements::Expression(expr) = stmt {
+            let ident = expr.expression.clone().unwrap();
+            if let Expressions::Identifier(ident) = ident {
+                assert_eq!(ident.value, "foobar");
+                assert_eq!(ident.token.literal(), "foobar");
+            } else {
+                panic!("Not expected expression");
+            }
+            // assert_eq!(ident.value, "foobar");
+        } else {
+            panic!("Not expected statement");
         }
     }
 }

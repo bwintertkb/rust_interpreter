@@ -6,7 +6,7 @@ pub trait Node {
 
 #[derive(Debug)]
 pub struct StatementStruct {
-    tokens: Vec<Token>,
+    pub tokens: Vec<Token>,
 }
 
 impl StatementStruct {
@@ -42,7 +42,7 @@ pub struct Program {
     pub statements: Vec<Statements>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Identifier {
     pub token: Token,
     pub value: String,
@@ -66,7 +66,7 @@ impl Expression for Identifier {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct LetStatement {
     pub token: Token,
     pub name: Identifier,
@@ -89,7 +89,7 @@ impl Node for LetStatement {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct ReturnStatement {
     token: Token, // The return token.
     return_value: String,
@@ -110,14 +110,18 @@ impl Node for ReturnStatement {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct ExpressionStatement {
-    token: Token,
+    pub token: Token,
+    pub expression: Option<Expressions>,
 }
 
 impl ExpressionStatement {
     pub fn new(token: Token) -> Self {
-        ExpressionStatement { token }
+        ExpressionStatement {
+            token,
+            expression: None,
+        }
     }
 }
 
@@ -127,15 +131,16 @@ impl Node for ExpressionStatement {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum Statements {
     Let(LetStatement),
     Return(ReturnStatement),
+    Expression(ExpressionStatement),
 }
 
 pub struct ExpressionValue;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum Expressions {
     Identifier(Identifier),
     TODO,
