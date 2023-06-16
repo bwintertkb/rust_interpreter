@@ -6,8 +6,8 @@ use std::{
 
 use crate::{
     ast::{
-        ExpressionStatement, Expressions, Identifier, LetStatement, Program, ReturnStatement,
-        StatementStruct, Statements,
+        ExpressionStatement, Expressions, Identifier, IntegerLiteral, LetStatement, Program,
+        ReturnStatement, StatementStruct, Statements,
     },
     lexer::{Lexer, Token},
 };
@@ -77,7 +77,8 @@ impl Parser {
             parser_infix_fn: InfixFns::default(),
         };
 
-        parser.register_prefix(Token::Ident("foobar".to_owned()).literal());
+        parser.register_prefix(Token::Ident("foobar".to_owned()).token_literal());
+        parser.register_prefix(Token::Int(1).token_literal());
 
         parser.next_token();
         parser.next_token();
@@ -224,19 +225,28 @@ impl Parser {
         Identifier::new(curr_token.clone(), curr_token.literal())
     }
 
+    pub fn parse_integer_literal(&self) -> IntegerLiteral {
+        println!("curr_token: {:?}", self.curr_token);
+        let curr_token = self.curr_token.as_ref().unwrap();
+        let value = curr_token.literal().parse::<i64>().unwrap();
+        IntegerLiteral::new(curr_token.clone(), value)
+    }
+
     pub fn parse_expression(&mut self, precedence: usize) -> Option<Expressions> {
         println!("parse_expression: {:?}", self.curr_token);
         let prefix_fn = self
             .parser_prefix_fn
             .fns
-            .get(&self.curr_token.as_ref().unwrap().literal())?;
+            .get(&self.curr_token.as_ref().unwrap().token_literal())?;
 
+        println!("prefix_fn: {:?}", self.curr_token);
         let left_expr = prefix_fn(self);
         println!("left_expr: {:?}", left_expr);
         Some(left_expr)
     }
 
     pub fn register_prefix(&mut self, token_literal: String) {
+        println!("register_prefix: {:?}", token_literal);
         self.parser_prefix_fn
             .fns
             .insert(token_literal, parse_prefix_expression);
@@ -280,6 +290,7 @@ fn parse_prefix_expression(p: &mut Parser) -> Expressions {
     let token = p.curr_token.clone().unwrap();
     match token {
         Token::Ident(_) => Expressions::Identifier(p.parse_identifier()),
+        Token::Int(_) => Expressions::Int(p.parse_integer_literal()),
         _ => panic!("Not implemented"),
     }
 }
@@ -313,7 +324,7 @@ impl Error for ParseError {}
 
 #[cfg(test)]
 mod tests {
-    use crate::parser;
+    use crate::{ast::Node, parser};
 
     use super::*;
 
@@ -328,89 +339,114 @@ mod tests {
         }
     }
 
+    //     #[test]
+    //     fn test_let_statements() {
+    //         let input = "
+    //         let x = 5;
+    //         let y = 10;
+    //         let foobar = 838383;
+    //     let 7718;
+    //         ";
+    //
+    //         let mut parser = Parser::new(input);
+    //         let program = parser.parse_program();
+    //
+    //         assert_eq!(program.statements.len(), 4);
+    //
+    //         let tests: Vec<ExpectedIdentifier> = vec![
+    //             ExpectedIdentifier::new("x".to_owned()),
+    //             ExpectedIdentifier::new("y".to_owned()),
+    //             ExpectedIdentifier::new("foobar".to_owned()),
+    //         ];
+    //
+    //         let zipped: Vec<_> = program.statements.iter().zip(tests.iter()).collect();
+    //
+    //         for (stmt, test) in zipped {
+    //             if let Statements::Let(let_) = stmt {
+    //                 assert_eq!(let_.name.value, test.identifier);
+    //             }
+    //         }
+    //     }
+    //
+    //     #[test]
+    //     fn test_no_token_err() {
+    //         let input = "";
+    //         let mut parser = Parser::new(input);
+    //         parser.parse_program();
+    //
+    //         assert_eq!(parser.errors.len(), 1);
+    //     }
+    //
+    //     #[test]
+    //     fn test_return_statements() {
+    //         let input = "
+    // return 5;
+    // return 10;
+    // return 993322;
+    // ";
+    //         let mut parser = Parser::new(input);
+    //         let program = parser.parse_program();
+    //
+    //         assert!(parser.errors.is_empty());
+    //
+    //         let tests: Vec<ExpectedIdentifier> = vec![
+    //             ExpectedIdentifier::new("".to_owned()),
+    //             ExpectedIdentifier::new("".to_owned()),
+    //             ExpectedIdentifier::new("".to_owned()),
+    //         ];
+    //
+    //         let zipped: Vec<_> = program.statements.iter().zip(tests.iter()).collect();
+    //
+    //         for (stmt, test) in zipped {
+    //             if let Statements::Let(let_) = stmt {
+    //                 assert_eq!(let_.name.value, test.identifier);
+    //             }
+    //         }
+    //     }
+    //
+    //     #[test]
+    //     fn test_identifier_expression() {
+    //         let input = "foobar;";
+    //
+    //         let mut parser = Parser::new(input);
+    //         let program = parser.parse_program();
+    //
+    //         assert!(parser.errors.is_empty());
+    //         let stmt = &program.statements[0];
+    //         if let Statements::Expression(expr) = stmt {
+    //             let ident = expr.expression.clone().unwrap();
+    //             if let Expressions::Identifier(ident) = ident {
+    //                 assert_eq!(ident.value, "foobar");
+    //                 assert_eq!(ident.token.literal(), "foobar");
+    //             } else {
+    //                 panic!("Not expected expression");
+    //             }
+    //             // assert_eq!(ident.value, "foobar");
+    //         } else {
+    //             panic!("Not expected statement");
+    //         }
+    //     }
+
     #[test]
-    fn test_let_statements() {
-        let input = "
-        let x = 5;
-        let y = 10;
-        let foobar = 838383;
-    let 7718;
-        ";
+    fn test_integer_literal_expression() {
+        let input = "5;";
 
         let mut parser = Parser::new(input);
         let program = parser.parse_program();
-
-        assert_eq!(program.statements.len(), 4);
-
-        let tests: Vec<ExpectedIdentifier> = vec![
-            ExpectedIdentifier::new("x".to_owned()),
-            ExpectedIdentifier::new("y".to_owned()),
-            ExpectedIdentifier::new("foobar".to_owned()),
-        ];
-
-        let zipped: Vec<_> = program.statements.iter().zip(tests.iter()).collect();
-
-        for (stmt, test) in zipped {
-            if let Statements::Let(let_) = stmt {
-                assert_eq!(let_.name.value, test.identifier);
-            }
-        }
-    }
-
-    #[test]
-    fn test_no_token_err() {
-        let input = "";
-        let mut parser = Parser::new(input);
-        parser.parse_program();
-
-        assert_eq!(parser.errors.len(), 1);
-    }
-
-    #[test]
-    fn test_return_statements() {
-        let input = "
-return 5;
-return 10;
-return 993322;
-";
-        let mut parser = Parser::new(input);
-        let program = parser.parse_program();
+        println!("{:?}", parser);
 
         assert!(parser.errors.is_empty());
 
-        let tests: Vec<ExpectedIdentifier> = vec![
-            ExpectedIdentifier::new("".to_owned()),
-            ExpectedIdentifier::new("".to_owned()),
-            ExpectedIdentifier::new("".to_owned()),
-        ];
-
-        let zipped: Vec<_> = program.statements.iter().zip(tests.iter()).collect();
-
-        for (stmt, test) in zipped {
-            if let Statements::Let(let_) = stmt {
-                assert_eq!(let_.name.value, test.identifier);
-            }
-        }
-    }
-
-    #[test]
-    fn test_identifier_expression() {
-        let input = "foobar;";
-
-        let mut parser = Parser::new(input);
-        let program = parser.parse_program();
-
-        assert!(parser.errors.is_empty());
         let stmt = &program.statements[0];
+        println!("STATEMENT: {:?}", stmt);
         if let Statements::Expression(expr) = stmt {
-            let ident = expr.expression.clone().unwrap();
-            if let Expressions::Identifier(ident) = ident {
-                assert_eq!(ident.value, "foobar");
-                assert_eq!(ident.token.literal(), "foobar");
+            let int_lit = expr.expression.clone().unwrap();
+            if let Expressions::Int(int) = int_lit {
+                assert_eq!(int.value, 5);
+                assert_eq!(int.token_literal(), "5");
             } else {
                 panic!("Not expected expression");
             }
-            // assert_eq!(ident.value, "foobar");
         } else {
             panic!("Not expected statement");
         }

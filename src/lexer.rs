@@ -39,6 +39,7 @@ pub enum Token {
 
 impl Token {
     pub fn literal(&self) -> String {
+        // Token/value literal
         match self {
             Token::Illegal => "illegal".to_owned(),
             Token::EOF => "eof".to_owned(),
@@ -68,6 +69,16 @@ impl Token {
             Token::Equal => "==".to_owned(),
             Token::NEqual => "!=".to_owned(),
             Token::Not => "!".to_owned(),
+        }
+    }
+
+    pub fn token_literal(&self) -> String {
+        // Only token literal
+        match self {
+            Token::Ident(_) => "ident".to_owned(),
+            Token::Int(_) => "int".to_owned(),
+            Token::Float(_) => "float".to_owned(),
+            _ => self.literal(),
         }
     }
 

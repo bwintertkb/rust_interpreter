@@ -67,6 +67,24 @@ impl Expression for Identifier {
 }
 
 #[derive(Debug, Clone)]
+pub struct IntegerLiteral {
+    pub token: Token,
+    pub value: i64,
+}
+
+impl IntegerLiteral {
+    pub fn new(token: Token, value: i64) -> Self {
+        IntegerLiteral { token, value }
+    }
+}
+
+impl Node for IntegerLiteral {
+    fn token_literal(&self) -> String {
+        self.token.literal()
+    }
+}
+
+#[derive(Debug, Clone)]
 pub struct LetStatement {
     pub token: Token,
     pub name: Identifier,
@@ -143,5 +161,6 @@ pub struct ExpressionValue;
 #[derive(Debug, Clone)]
 pub enum Expressions {
     Identifier(Identifier),
+    Int(IntegerLiteral),
     TODO,
 }
