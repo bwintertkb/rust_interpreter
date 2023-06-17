@@ -112,6 +112,40 @@ impl Node for PrefixExpression {
 }
 
 #[derive(Debug, Clone)]
+pub struct InfixExpression {
+    pub token: Token,
+    pub left: Box<Expressions>,
+    pub operator: String,
+    pub right: Box<Expressions>,
+}
+
+impl InfixExpression {
+    pub fn new(token: Token, left: Expressions, operator: String, right: Expressions) -> Self {
+        InfixExpression {
+            token,
+            left: Box::new(left),
+            operator,
+            right: Box::new(right),
+        }
+    }
+
+    pub fn string(&self) -> String {
+        format!(
+            "({} {} {})",
+            self.left.string(),
+            self.operator,
+            self.right.string()
+        )
+    }
+}
+
+impl Node for InfixExpression {
+    fn token_literal(&self) -> String {
+        self.token.literal()
+    }
+}
+
+#[derive(Debug, Clone)]
 pub struct LetStatement {
     pub token: Token,
     pub name: Identifier,
@@ -190,6 +224,7 @@ pub enum Expressions {
     Identifier(Identifier),
     Int(IntegerLiteral),
     PrefixExpr(PrefixExpression),
+    InfixExpr(InfixExpression),
     TODO,
 }
 
@@ -199,6 +234,7 @@ impl Expressions {
             Expressions::Identifier(ident) => ident.token_literal(),
             Expressions::Int(int) => int.token_literal(),
             Expressions::PrefixExpr(prefix) => prefix.string(),
+            Expressions::InfixExpr(infix) => infix.string(),
             _ => panic!("Not implemented"),
         }
     }

@@ -4,13 +4,32 @@ use std::{
     fmt::{Debug, Display},
 };
 
+use once_cell::sync::Lazy;
+
 use crate::{
     ast::{
-        ExpressionStatement, Expressions, Identifier, IntegerLiteral, LetStatement,
-        PrefixExpression, Program, ReturnStatement, StatementStruct, Statements,
+        ExpressionStatement, Expressions, Identifier, InfixExpression, IntegerLiteral,
+        LetStatement, PrefixExpression, Program, ReturnStatement, StatementStruct, Statements,
     },
     lexer::{Lexer, Token},
 };
+
+static PRECEDENCE_TABLE: Lazy<HashMap<String, usize>> = Lazy::new(|| {
+    let mut precedence_table = HashMap::new();
+    precedence_table.insert(Token::Equal.token_literal(), Iota::Equals as usize);
+    precedence_table.insert(Token::NEqual.token_literal(), Iota::Equals as usize);
+    precedence_table.insert(Token::LessThan.token_literal(), Iota::LessGreater as usize);
+    precedence_table.insert(
+        Token::GreaterThan.token_literal(),
+        Iota::LessGreater as usize,
+    );
+    precedence_table.insert(Token::Plus.token_literal(), Iota::Sum as usize);
+    precedence_table.insert(Token::Minus.token_literal(), Iota::Sum as usize);
+    precedence_table.insert(Token::Slash.token_literal(), Iota::Product as usize);
+    precedence_table.insert(Token::Asterisk.token_literal(), Iota::Product as usize);
+
+    precedence_table
+});
 
 #[derive(Debug)]
 pub enum Iota {
@@ -77,10 +96,19 @@ impl Parser {
             parser_infix_fn: InfixFns::default(),
         };
 
-        parser.register_prefix(Token::Ident("foobar".to_owned()).token_literal());
+        parser.register_prefix(Token::Ident(String::default()).token_literal());
         parser.register_prefix(Token::Int(1).token_literal());
         parser.register_prefix(Token::Bang.token_literal());
         parser.register_prefix(Token::Minus.token_literal());
+
+        parser.register_infix(Token::Plus.token_literal());
+        parser.register_infix(Token::Minus.token_literal());
+        parser.register_infix(Token::Slash.token_literal());
+        parser.register_infix(Token::Asterisk.token_literal());
+        parser.register_infix(Token::Equal.token_literal());
+        parser.register_infix(Token::NEqual.token_literal());
+        parser.register_infix(Token::LessThan.token_literal());
+        parser.register_infix(Token::GreaterThan.token_literal());
 
         parser.next_token();
         parser.next_token();
@@ -147,6 +175,22 @@ impl Parser {
 
         self.peek_err(&token);
         false
+    }
+
+    pub fn peek_precedence(&self) -> usize {
+        let peek_token = self.peek_token.as_ref().unwrap().token_literal();
+        if let Some(precedence) = PRECEDENCE_TABLE.get(&peek_token) {
+            return *precedence;
+        }
+        Iota::Lowest as usize
+    }
+
+    pub fn curr_precedence(&self) -> usize {
+        let curr_token = self.curr_token.as_ref().unwrap().token_literal();
+        if let Some(precedence) = PRECEDENCE_TABLE.get(&curr_token) {
+            return *precedence;
+        }
+        Iota::Lowest as usize
     }
 
     pub fn parse_program(&mut self) -> Program {
@@ -246,6 +290,21 @@ impl Parser {
         )
     }
 
+    pub fn parse_infix_expression(&mut self, expression: Expressions) -> InfixExpression {
+        let curr_token = self.curr_token.clone().unwrap();
+        let curr_token_literal = curr_token.token_literal();
+        let curr_precedence = self.curr_precedence();
+        self.next_token();
+        let right_expression = self.parse_expression(curr_precedence);
+
+        InfixExpression::new(
+            curr_token,
+            expression,
+            curr_token_literal,
+            right_expression.unwrap(),
+        )
+    }
+
     pub fn parse_expression(&mut self, precedence: usize) -> Option<Expressions> {
         println!("parse_expression: {:?}", self.curr_token);
         let token = self.curr_token.as_ref().unwrap().clone();
@@ -258,8 +317,23 @@ impl Parser {
         };
 
         println!("prefix_fn: {:?}", self.curr_token);
-        let left_expr = prefix_fn(self);
+        let mut left_expr = prefix_fn(self);
         println!("left_expr: {:?}", left_expr);
+
+        while !self.peek_token_is(&Token::Semicolon) && precedence < self.peek_precedence() {
+            let infix_fn = match self
+                .parser_infix_fn
+                .fns
+                .get(&self.peek_token.as_ref().unwrap().token_literal())
+            {
+                Some(fn_) => *fn_,
+                None => return Some(left_expr),
+            };
+
+            self.next_token();
+
+            left_expr = infix_fn(self, left_expr);
+        }
         Some(left_expr)
     }
 
@@ -320,7 +394,8 @@ fn parse_prefix_expression(p: &mut Parser) -> Expressions {
 }
 
 fn parse_infix_expression(p: &mut Parser, expression: Expressions) -> Expressions {
-    Expressions::TODO
+    let infix = p.parse_infix_expression(expression);
+    Expressions::InfixExpr(infix)
 }
 
 #[derive(Debug)]
@@ -555,6 +630,7 @@ mod tests {
 
     #[test]
     fn test_parsing_infix_expressions() {
+        // Infix <expression> <infix operator> <expression>
         struct InfixTest {
             input: String,
             left_value: i64,
@@ -588,8 +664,25 @@ mod tests {
             let mut parser = Parser::new(&infix.input);
             let program = parser.parse_program();
 
+            println!("ERRORS: {:?}", parser.errors);
             assert!(parser.errors.is_empty());
+            println!("statements: {:?}", program.statements);
             assert_eq!(program.statements.len(), 1);
+
+            let stmt = &program.statements[0];
+
+            if let Statements::Expression(expr) = stmt {
+                let infix_expr = expr.expression.clone().unwrap();
+                if let Expressions::InfixExpr(expr) = infix_expr {
+                    assert!(test_integer_literal(*expr.left, infix.left_value));
+                    assert_eq!(expr.operator, infix.operator);
+                    assert!(test_integer_literal(*expr.right, infix.right_value));
+                } else {
+                    panic!("Not expected expression");
+                }
+            } else {
+                panic!("Not expected statement");
+            }
         }
     }
 }
