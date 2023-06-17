@@ -583,5 +583,13 @@ mod tests {
             InfixTest::new("5 == 5".to_owned(), 5, "==".to_owned(), 5),
             InfixTest::new("5 != 5".to_owned(), 5, "!=".to_owned(), 5),
         ];
+
+        for infix in infix_tests.into_iter() {
+            let mut parser = Parser::new(&infix.input);
+            let program = parser.parse_program();
+
+            assert!(parser.errors.is_empty());
+            assert_eq!(program.statements.len(), 1);
+        }
     }
 }
