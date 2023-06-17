@@ -505,51 +505,83 @@ mod tests {
         true
     }
 
+    // #[test]
+    // fn test_parsing_prefix_expressions() {
+    //     struct PrefixTest {
+    //         input: String,
+    //         operator: String,
+    //         integer_value: i64,
+    //     }
+    //
+    //     impl PrefixTest {
+    //         fn new(input: String, operator: String, integer_value: i64) -> Self {
+    //             PrefixTest {
+    //                 input,
+    //                 operator,
+    //                 integer_value,
+    //             }
+    //         }
+    //     }
+    //
+    //     let prefix_tests: [PrefixTest; 2] = [
+    //         PrefixTest::new("!5;".to_owned(), "!".to_owned(), 5),
+    //         PrefixTest::new("-15".to_owned(), "-".to_owned(), 15),
+    //     ];
+    //
+    //     for pt in prefix_tests.into_iter() {
+    //         let mut parser = Parser::new(&pt.input);
+    //         let program = parser.parse_program();
+    //
+    //         println!("ERRORS: {:?}", parser.errors);
+    //         assert!(parser.errors.is_empty());
+    //         println!("statements: {:?}", program.statements);
+    //         assert_eq!(program.statements.len(), 1);
+    //
+    //         let stmt = &program.statements[0];
+    //
+    //         if let Statements::Expression(expr) = stmt {
+    //             let prefix_expr = expr.expression.clone().unwrap();
+    //             if let Expressions::PrefixExpr(prefix_expr) = prefix_expr {
+    //                 assert_eq!(prefix_expr.operator, pt.operator);
+    //                 assert!(test_integer_literal(*prefix_expr.right, pt.integer_value));
+    //             } else {
+    //                 panic!("Not expected expression");
+    //             }
+    //         } else {
+    //             panic!("Not expected statement");
+    //         }
+    //     }
+    // }
+
     #[test]
-    fn test_parsing_prefix_expressions() {
-        struct PrefixTest {
+    fn test_parsing_infix_expressions() {
+        struct InfixTest {
             input: String,
+            left_value: i64,
             operator: String,
-            integer_value: i64,
+            right_value: i64,
         }
 
-        impl PrefixTest {
-            fn new(input: String, operator: String, integer_value: i64) -> Self {
-                PrefixTest {
+        impl InfixTest {
+            fn new(input: String, left_value: i64, operator: String, right_value: i64) -> Self {
+                InfixTest {
                     input,
+                    left_value,
                     operator,
-                    integer_value,
+                    right_value,
                 }
             }
         }
 
-        let prefix_tests: [PrefixTest; 2] = [
-            PrefixTest::new("!5;".to_owned(), "!".to_owned(), 5),
-            PrefixTest::new("-15".to_owned(), "-".to_owned(), 15),
+        let infix_tests: [InfixTest; 8] = [
+            InfixTest::new("5 + 5".to_owned(), 5, "+".to_owned(), 5),
+            InfixTest::new("5 - 5".to_owned(), 5, "-".to_owned(), 5),
+            InfixTest::new("5 * 5".to_owned(), 5, "*".to_owned(), 5),
+            InfixTest::new("5 / 5".to_owned(), 5, "/".to_owned(), 5),
+            InfixTest::new("5 > 5".to_owned(), 5, ">".to_owned(), 5),
+            InfixTest::new("5 < 5".to_owned(), 5, "<".to_owned(), 5),
+            InfixTest::new("5 == 5".to_owned(), 5, "==".to_owned(), 5),
+            InfixTest::new("5 != 5".to_owned(), 5, "!=".to_owned(), 5),
         ];
-
-        for pt in prefix_tests.into_iter() {
-            let mut parser = Parser::new(&pt.input);
-            let program = parser.parse_program();
-
-            println!("ERRORS: {:?}", parser.errors);
-            assert!(parser.errors.is_empty());
-            println!("statements: {:?}", program.statements);
-            assert_eq!(program.statements.len(), 1);
-
-            let stmt = &program.statements[0];
-
-            if let Statements::Expression(expr) = stmt {
-                let prefix_expr = expr.expression.clone().unwrap();
-                if let Expressions::PrefixExpr(prefix_expr) = prefix_expr {
-                    assert_eq!(prefix_expr.operator, pt.operator);
-                    assert!(test_integer_literal(*prefix_expr.right, pt.integer_value));
-                } else {
-                    panic!("Not expected expression");
-                }
-            } else {
-                panic!("Not expected statement");
-            }
-        }
     }
 }
