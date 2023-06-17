@@ -85,6 +85,33 @@ impl Node for IntegerLiteral {
 }
 
 #[derive(Debug, Clone)]
+pub struct PrefixExpression {
+    pub token: Token,
+    pub operator: String,
+    pub right: Box<Expressions>,
+}
+
+impl PrefixExpression {
+    pub fn new(token: Token, operator: String, right: Expressions) -> Self {
+        PrefixExpression {
+            token,
+            operator,
+            right: Box::new(right),
+        }
+    }
+
+    pub fn string(&self) -> String {
+        format!("({}{})", self.operator, self.right.string())
+    }
+}
+
+impl Node for PrefixExpression {
+    fn token_literal(&self) -> String {
+        self.token.literal()
+    }
+}
+
+#[derive(Debug, Clone)]
 pub struct LetStatement {
     pub token: Token,
     pub name: Identifier,
@@ -162,5 +189,17 @@ pub struct ExpressionValue;
 pub enum Expressions {
     Identifier(Identifier),
     Int(IntegerLiteral),
+    PrefixExpr(PrefixExpression),
     TODO,
+}
+
+impl Expressions {
+    pub fn string(&self) -> String {
+        match self {
+            Expressions::Identifier(ident) => ident.token_literal(),
+            Expressions::Int(int) => int.token_literal(),
+            Expressions::PrefixExpr(prefix) => prefix.string(),
+            _ => panic!("Not implemented"),
+        }
+    }
 }

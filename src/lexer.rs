@@ -34,7 +34,7 @@ pub enum Token {
     Else,
     Equal,
     NEqual,
-    Not,
+    Bang,
 }
 
 impl Token {
@@ -68,7 +68,7 @@ impl Token {
             Token::Else => "else".to_owned(),
             Token::Equal => "==".to_owned(),
             Token::NEqual => "!=".to_owned(),
-            Token::Not => "!".to_owned(),
+            Token::Bang => "!".to_owned(),
         }
     }
 
@@ -119,26 +119,6 @@ impl Token {
         c == '\0'
     }
 
-    fn from_special_char(c: char) -> Token {
-        match c {
-            '=' => Token::Assign,
-            '+' => Token::Plus,
-            '-' => Token::Minus,
-            '*' => Token::Multiply,
-            '/' => Token::Divide,
-            ',' => Token::Comma,
-            ';' => Token::Semicolon,
-            '(' => Token::LParen,
-            ')' => Token::RParen,
-            '{' => Token::LBrace,
-            '}' => Token::RBrace,
-            '<' => Token::LessThan,
-            '>' => Token::GreaterThan,
-            '!' => Token::Not,
-            _ => Token::Illegal,
-        }
-    }
-
     fn is_special_double_char(c_curr: char, c_next: char) -> bool {
         (c_curr == '!' || c_curr == '=') && c_next == '='
     }
@@ -185,7 +165,7 @@ impl From<&str> for Token {
             ")" => Token::RParen,
             "{" => Token::LBrace,
             "}" => Token::RBrace,
-            "!" => Token::Not,
+            "!" => Token::Bang,
             "<" => Token::LessThan,
             ">" => Token::GreaterThan,
             "==" => Token::Equal,
@@ -342,7 +322,7 @@ impl Serialize for Token {
             Token::Else => serializer.serialize_unit_variant(TOKEN_NAME, 24, "Else"),
             Token::Equal => serializer.serialize_unit_variant(TOKEN_NAME, 25, "Equal"),
             Token::NEqual => serializer.serialize_unit_variant(TOKEN_NAME, 26, "NEqual"),
-            Token::Not => serializer.serialize_unit_variant(TOKEN_NAME, 27, "Not"),
+            Token::Bang => serializer.serialize_unit_variant(TOKEN_NAME, 27, "Not"),
         }
     }
 }
@@ -388,7 +368,7 @@ impl<'de> Visitor<'de> for TokenVisitor {
             ("Else", _) => Ok(Token::Else),
             ("Equal", _) => Ok(Token::Equal),
             ("NEqual", _) => Ok(Token::NEqual),
-            ("Not", _) => Ok(Token::Not),
+            ("Not", _) => Ok(Token::Bang),
             _ => Err(serde::de::Error::invalid_value(
                 serde::de::Unexpected::UnitVariant,
                 &"expected Token variant",
@@ -680,7 +660,7 @@ let five = 5; let ten = 10; let add = fn(x, y) { x + y; }; let result = add(five
             Token::Ident("ten".to_owned()),
             Token::RParen,
             Token::Semicolon,
-            Token::Not,
+            Token::Bang,
             Token::Minus,
             Token::Divide,
             Token::Multiply,
