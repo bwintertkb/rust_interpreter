@@ -315,6 +315,7 @@ impl Parser {
         };
 
         let mut left_expr = prefix_fn(self);
+        //
 
         while !self.peek_token_is(&Token::Semicolon) && precedence < self.peek_precedence() {
             let infix_fn = match self
