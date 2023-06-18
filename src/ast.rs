@@ -92,6 +92,10 @@ impl IntegerLiteral {
     pub fn new(token: Token, value: i64) -> Self {
         IntegerLiteral { token, value }
     }
+
+    pub fn string(&self) -> String {
+        self.token.literal()
+    }
 }
 
 impl Node for IntegerLiteral {

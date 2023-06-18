@@ -719,8 +719,6 @@ mod tests {
 
             let actual = program.string();
             assert_eq!(actual, t.expected);
-
-            println!("Errors: {:?}", parser.errors);
         }
     }
 }
