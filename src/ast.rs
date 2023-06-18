@@ -42,6 +42,18 @@ pub struct Program {
     pub statements: Vec<Statements>,
 }
 
+impl Program {
+    pub fn string(&self) -> String {
+        let mut string_buffer = String::new();
+
+        self.statements.iter().for_each(|s| {
+            string_buffer.push_str(&s.string());
+        });
+
+        string_buffer
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct Identifier {
     pub token: Token,
@@ -51,6 +63,10 @@ pub struct Identifier {
 impl Identifier {
     pub fn new(token: Token, value: String) -> Self {
         Identifier { token, value }
+    }
+
+    pub fn string(&self) -> String {
+        self.value.clone()
     }
 }
 
@@ -160,11 +176,22 @@ impl LetStatement {
             value: expression,
         }
     }
+
+    pub fn string(&self) -> String {
+        let mut string_buffer = format!("{} {} = ", self.token_literal(), self.name.string());
+
+        if !self.value.is_empty() {
+            string_buffer.push_str(&self.value);
+        }
+
+        string_buffer.push(';');
+        string_buffer
+    }
 }
 
 impl Node for LetStatement {
     fn token_literal(&self) -> String {
-        self.token.literal()
+        self.token.token_literal()
     }
 }
 
@@ -181,11 +208,20 @@ impl ReturnStatement {
             return_value,
         }
     }
+
+    pub fn string(&self) -> String {
+        let mut string_buffer = format!("{} ", self.token_literal());
+
+        if !self.return_value.is_empty() {
+            string_buffer.push_str(&self.return_value);
+        }
+        string_buffer
+    }
 }
 
 impl Node for ReturnStatement {
     fn token_literal(&self) -> String {
-        self.token.literal()
+        self.token.token_literal()
     }
 }
 
@@ -202,6 +238,13 @@ impl ExpressionStatement {
             expression: None,
         }
     }
+
+    pub fn string(&self) -> String {
+        if let Some(ref expr) = self.expression {
+            return expr.string();
+        }
+        "".to_owned()
+    }
 }
 
 impl Node for ExpressionStatement {
@@ -215,6 +258,16 @@ pub enum Statements {
     Let(LetStatement),
     Return(ReturnStatement),
     Expression(ExpressionStatement),
+}
+
+impl Statements {
+    pub fn string(&self) -> String {
+        match self {
+            Statements::Let(stmt) => stmt.string(),
+            Statements::Return(stmt) => stmt.string(),
+            Statements::Expression(stmt) => stmt.string(),
+        }
+    }
 }
 
 pub struct ExpressionValue;

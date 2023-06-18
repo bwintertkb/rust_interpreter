@@ -272,7 +272,6 @@ impl Parser {
     }
 
     pub fn parse_integer_literal(&self) -> IntegerLiteral {
-        println!("curr_token: {:?}", self.curr_token);
         let curr_token = self.curr_token.as_ref().unwrap();
         let value = curr_token.literal().parse::<i64>().unwrap();
         IntegerLiteral::new(curr_token.clone(), value)
@@ -306,7 +305,6 @@ impl Parser {
     }
 
     pub fn parse_expression(&mut self, precedence: usize) -> Option<Expressions> {
-        println!("parse_expression: {:?}", self.curr_token);
         let token = self.curr_token.as_ref().unwrap().clone();
         let prefix_fn = match self.parser_prefix_fn.fns.get(&token.token_literal()) {
             Some(fn_) => fn_,
@@ -316,9 +314,7 @@ impl Parser {
             }
         };
 
-        println!("prefix_fn: {:?}", self.curr_token);
         let mut left_expr = prefix_fn(self);
-        println!("left_expr: {:?}", left_expr);
 
         while !self.peek_token_is(&Token::Semicolon) && precedence < self.peek_precedence() {
             let infix_fn = match self
@@ -343,7 +339,6 @@ impl Parser {
     }
 
     pub fn register_prefix(&mut self, token_literal: String) {
-        println!("register_prefix: {:?}", token_literal);
         self.parser_prefix_fn
             .fns
             .insert(token_literal, parse_prefix_expression);
@@ -628,61 +623,104 @@ mod tests {
     //     }
     // }
 
+    // #[test]
+    // fn test_parsing_infix_expressions() {
+    //     // Infix <expression> <infix operator> <expression>
+    //     struct InfixTest {
+    //         input: String,
+    //         left_value: i64,
+    //         operator: String,
+    //         right_value: i64,
+    //     }
+    //
+    //     impl InfixTest {
+    //         fn new(input: String, left_value: i64, operator: String, right_value: i64) -> Self {
+    //             InfixTest {
+    //                 input,
+    //                 left_value,
+    //                 operator,
+    //                 right_value,
+    //             }
+    //         }
+    //     }
+    //
+    //     let infix_tests: [InfixTest; 8] = [
+    //         InfixTest::new("5 + 5".to_owned(), 5, "+".to_owned(), 5),
+    //         InfixTest::new("5 - 5".to_owned(), 5, "-".to_owned(), 5),
+    //         InfixTest::new("5 * 5".to_owned(), 5, "*".to_owned(), 5),
+    //         InfixTest::new("5 / 5".to_owned(), 5, "/".to_owned(), 5),
+    //         InfixTest::new("5 > 5".to_owned(), 5, ">".to_owned(), 5),
+    //         InfixTest::new("5 < 5".to_owned(), 5, "<".to_owned(), 5),
+    //         InfixTest::new("5 == 5".to_owned(), 5, "==".to_owned(), 5),
+    //         InfixTest::new("5 != 5".to_owned(), 5, "!=".to_owned(), 5),
+    //     ];
+    //
+    //     for infix in infix_tests.into_iter() {
+    //         let mut parser = Parser::new(&infix.input);
+    //         let program = parser.parse_program();
+    //
+    //         println!("ERRORS: {:?}", parser.errors);
+    //         assert!(parser.errors.is_empty());
+    //         println!("statements: {:?}", program.statements);
+    //         assert_eq!(program.statements.len(), 1);
+    //
+    //         let stmt = &program.statements[0];
+    //
+    //         if let Statements::Expression(expr) = stmt {
+    //             let infix_expr = expr.expression.clone().unwrap();
+    //             if let Expressions::InfixExpr(expr) = infix_expr {
+    //                 assert!(test_integer_literal(*expr.left, infix.left_value));
+    //                 assert_eq!(expr.operator, infix.operator);
+    //                 assert!(test_integer_literal(*expr.right, infix.right_value));
+    //             } else {
+    //                 panic!("Not expected expression");
+    //             }
+    //         } else {
+    //             panic!("Not expected statement");
+    //         }
+    //     }
+    // }
+
     #[test]
-    fn test_parsing_infix_expressions() {
-        // Infix <expression> <infix operator> <expression>
-        struct InfixTest {
-            input: String,
-            left_value: i64,
-            operator: String,
-            right_value: i64,
+    fn test_operator_precedence_parsing() {
+        struct OperatorPrecendence {
+            input: &'static str,
+            expected: &'static str,
         }
 
-        impl InfixTest {
-            fn new(input: String, left_value: i64, operator: String, right_value: i64) -> Self {
-                InfixTest {
-                    input,
-                    left_value,
-                    operator,
-                    right_value,
-                }
+        impl OperatorPrecendence {
+            fn new(input: &'static str, expected: &'static str) -> Self {
+                OperatorPrecendence { input, expected }
             }
         }
 
-        let infix_tests: [InfixTest; 8] = [
-            InfixTest::new("5 + 5".to_owned(), 5, "+".to_owned(), 5),
-            InfixTest::new("5 - 5".to_owned(), 5, "-".to_owned(), 5),
-            InfixTest::new("5 * 5".to_owned(), 5, "*".to_owned(), 5),
-            InfixTest::new("5 / 5".to_owned(), 5, "/".to_owned(), 5),
-            InfixTest::new("5 > 5".to_owned(), 5, ">".to_owned(), 5),
-            InfixTest::new("5 < 5".to_owned(), 5, "<".to_owned(), 5),
-            InfixTest::new("5 == 5".to_owned(), 5, "==".to_owned(), 5),
-            InfixTest::new("5 != 5".to_owned(), 5, "!=".to_owned(), 5),
+        let tests: [OperatorPrecendence; 12] = [
+            OperatorPrecendence::new("-a * b", "((-a) * b)"),
+            OperatorPrecendence::new("!-a", "(!(-a))"),
+            OperatorPrecendence::new("a + b + c", "((a + b) + c)"),
+            OperatorPrecendence::new("a + b - c", "((a + b) - c)"),
+            OperatorPrecendence::new("a * b * c", "((a * b) * c)"),
+            OperatorPrecendence::new("a * b / c", "((a * b) / c)"),
+            OperatorPrecendence::new("a + b / c", "(a + (b / c))"),
+            OperatorPrecendence::new("a + b * c + d / e - f", "(((a + (b * c)) + (d / e)) - f)"),
+            OperatorPrecendence::new("3 + 4; -5 * 5", "(3 + 4)((-5) * 5)"),
+            OperatorPrecendence::new("5 > 4 == 3 < 4", "((5 > 4) == (3 < 4))"),
+            OperatorPrecendence::new("5 < 4 != 3 > 4", "((5 < 4) != (3 > 4))"),
+            OperatorPrecendence::new(
+                "3 + 4 * 5 == 3 * 1 + 4 * 5",
+                "((3 + (4 * 5)) == ((3 * 1) + (4 * 5)))",
+            ),
         ];
 
-        for infix in infix_tests.into_iter() {
-            let mut parser = Parser::new(&infix.input);
+        for t in tests.into_iter() {
+            let mut parser = Parser::new(t.input);
             let program = parser.parse_program();
-
-            println!("ERRORS: {:?}", parser.errors);
             assert!(parser.errors.is_empty());
-            println!("statements: {:?}", program.statements);
-            assert_eq!(program.statements.len(), 1);
 
-            let stmt = &program.statements[0];
+            let actual = program.string();
+            assert_eq!(actual, t.expected);
 
-            if let Statements::Expression(expr) = stmt {
-                let infix_expr = expr.expression.clone().unwrap();
-                if let Expressions::InfixExpr(expr) = infix_expr {
-                    assert!(test_integer_literal(*expr.left, infix.left_value));
-                    assert_eq!(expr.operator, infix.operator);
-                    assert!(test_integer_literal(*expr.right, infix.right_value));
-                } else {
-                    panic!("Not expected expression");
-                }
-            } else {
-                panic!("Not expected statement");
-            }
+            println!("Errors: {:?}", parser.errors);
         }
     }
 }
