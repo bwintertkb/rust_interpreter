@@ -8,7 +8,7 @@ use once_cell::sync::Lazy;
 
 use crate::{
     ast::{
-        ExpressionStatement, Expressions, Identifier, InfixExpression, IntegerLiteral,
+        Boolean, ExpressionStatement, Expressions, Identifier, InfixExpression, IntegerLiteral,
         LetStatement, PrefixExpression, Program, ReturnStatement, StatementStruct, Statements,
     },
     lexer::{Lexer, Token},
@@ -100,6 +100,8 @@ impl Parser {
         parser.register_prefix(Token::Int(1).token_literal());
         parser.register_prefix(Token::Bang.token_literal());
         parser.register_prefix(Token::Minus.token_literal());
+        parser.register_prefix(Token::True.token_literal());
+        parser.register_prefix(Token::False.token_literal());
 
         parser.register_infix(Token::Plus.token_literal());
         parser.register_infix(Token::Minus.token_literal());
@@ -277,6 +279,11 @@ impl Parser {
         IntegerLiteral::new(curr_token.clone(), value)
     }
 
+    pub fn parse_boolean(&self) -> Boolean {
+        let curr_token = self.curr_token.as_ref().unwrap().clone();
+        Boolean::new(curr_token, self.curr_token_is(Token::True))
+    }
+
     pub fn parse_prefix_expression(&mut self) -> PrefixExpression {
         let curr_token = self.curr_token.clone().unwrap();
         let token_literal = curr_token.token_literal();
@@ -384,6 +391,7 @@ fn parse_prefix_expression(p: &mut Parser) -> Expressions {
     match token {
         Token::Ident(_) => Expressions::Identifier(p.parse_identifier()),
         Token::Int(_) => Expressions::Int(p.parse_integer_literal()),
+        Token::True | Token::False => Expressions::Boolean(p.parse_boolean()),
         Token::Minus | Token::Bang => Expressions::PrefixExpr(p.parse_prefix_expression()),
         _ => panic!("Not implemented"),
     }
@@ -681,6 +689,112 @@ mod tests {
     //         }
     //     }
     // }
+    //
+    fn test_identifier(expr: Expressions, value: String) -> bool {
+        let ident = if let Expressions::Identifier(ident) = expr {
+            ident
+        } else {
+            return false;
+        };
+
+        if ident.value != value {
+            println!("ident.value not {}. got={}", value, ident.value);
+            return false;
+        }
+
+        if ident.token_literal() != value {
+            println!(
+                "ident.token_literal not {}. got={}",
+                value,
+                ident.token_literal()
+            );
+
+            return false;
+        }
+
+        true
+    }
+
+    enum Expected {
+        Int(i64),
+        String(String),
+    }
+
+    fn test_literal_expression(expr: Expressions, expected: Expected) -> bool {
+        match expected {
+            Expected::Int(int) => test_integer_literal(expr, int),
+            Expected::String(str) => test_identifier(expr, str),
+        }
+    }
+
+    fn test_infix_expression(
+        expr: Expressions,
+        left: Expected,
+        operator: String,
+        right: Expected,
+    ) -> bool {
+        let infix = if let Expressions::InfixExpr(infix) = expr {
+            infix
+        } else {
+            return false;
+        };
+
+        if !test_literal_expression(*infix.left, left) {
+            println!("test_literal_expression left failed");
+            return false;
+        }
+
+        if infix.operator != operator {
+            println!("infix.operator is not {}. got={}", operator, infix.operator);
+            return false;
+        }
+
+        if !test_literal_expression(*infix.right, right) {
+            println!("test_literal_expression right failed");
+            return false;
+        }
+
+        true
+    }
+
+    #[test]
+    fn test_boolean_expression() {
+        struct BooleanExpect {
+            input: String,
+            boolean: bool,
+        }
+
+        impl BooleanExpect {
+            fn new(input: String, boolean: bool) -> Self {
+                BooleanExpect { input, boolean }
+            }
+        }
+
+        let bool_tests: [BooleanExpect; 2] = [
+            BooleanExpect::new("true;".to_owned(), true),
+            BooleanExpect::new("false;".to_owned(), false),
+        ];
+
+        for t in bool_tests.into_iter() {
+            let mut parse = Parser::new(&t.input);
+            let program = parse.parse_program();
+
+            assert!(parse.errors.is_empty());
+
+            let stmt = &program.statements[0];
+
+            if let Statements::Expression(expr) = stmt {
+                let expr = expr.expression.as_ref().unwrap();
+                if let Expressions::Boolean(boolean) = expr {
+                    assert_eq!(boolean.value, t.boolean);
+                } else {
+                    panic!("Not expected expression");
+                }
+            } else {
+                panic!("Not expected statement");
+            }
+        }
+    }
 
     #[test]
     fn test_operator_precedence_parsing() {

@@ -166,6 +166,28 @@ impl Node for InfixExpression {
 }
 
 #[derive(Debug, Clone)]
+pub struct Boolean {
+    pub token: Token,
+    pub value: bool,
+}
+
+impl Boolean {
+    pub fn new(token: Token, value: bool) -> Self {
+        Boolean { token, value }
+    }
+
+    pub fn string(&self) -> String {
+        self.token.literal()
+    }
+}
+
+impl Node for Boolean {
+    fn token_literal(&self) -> String {
+        self.token.literal()
+    }
+}
+
+#[derive(Debug, Clone)]
 pub struct LetStatement {
     pub token: Token,
     pub name: Identifier,
@@ -280,6 +302,7 @@ pub struct ExpressionValue;
 pub enum Expressions {
     Identifier(Identifier),
     Int(IntegerLiteral),
+    Boolean(Boolean),
     PrefixExpr(PrefixExpression),
     InfixExpr(InfixExpression),
     TODO,
