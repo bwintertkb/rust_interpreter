@@ -315,6 +315,7 @@ impl Expressions {
             Expressions::Int(int) => int.token_literal(),
             Expressions::PrefixExpr(prefix) => prefix.string(),
             Expressions::InfixExpr(infix) => infix.string(),
+            Expressions::Boolean(bool_) => bool_.string(),
             _ => panic!("Not implemented"),
         }
     }

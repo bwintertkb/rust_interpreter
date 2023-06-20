@@ -322,7 +322,6 @@ impl Parser {
         };
 
         let mut left_expr = prefix_fn(self);
-        //
 
         while !self.peek_token_is(&Token::Semicolon) && precedence < self.peek_precedence() {
             let infix_fn = match self
@@ -446,118 +445,116 @@ mod tests {
         }
     }
 
-    //     #[test]
-    //     fn test_let_statements() {
-    //         let input = "
-    //         let x = 5;
-    //         let y = 10;
-    //         let foobar = 838383;
-    //     let 7718;
-    //         ";
-    //
-    //         let mut parser = Parser::new(input);
-    //         let program = parser.parse_program();
-    //
-    //         assert_eq!(program.statements.len(), 4);
-    //
-    //         let tests: Vec<ExpectedIdentifier> = vec![
-    //             ExpectedIdentifier::new("x".to_owned()),
-    //             ExpectedIdentifier::new("y".to_owned()),
-    //             ExpectedIdentifier::new("foobar".to_owned()),
-    //         ];
-    //
-    //         let zipped: Vec<_> = program.statements.iter().zip(tests.iter()).collect();
-    //
-    //         for (stmt, test) in zipped {
-    //             if let Statements::Let(let_) = stmt {
-    //                 assert_eq!(let_.name.value, test.identifier);
-    //             }
-    //         }
-    //     }
-    //
-    //     #[test]
-    //     fn test_no_token_err() {
-    //         let input = "";
-    //         let mut parser = Parser::new(input);
-    //         parser.parse_program();
-    //
-    //         assert_eq!(parser.errors.len(), 1);
-    //     }
-    //
-    //     #[test]
-    //     fn test_return_statements() {
-    //         let input = "
-    // return 5;
-    // return 10;
-    // return 993322;
-    // ";
-    //         let mut parser = Parser::new(input);
-    //         let program = parser.parse_program();
-    //
-    //         assert!(parser.errors.is_empty());
-    //
-    //         let tests: Vec<ExpectedIdentifier> = vec![
-    //             ExpectedIdentifier::new("".to_owned()),
-    //             ExpectedIdentifier::new("".to_owned()),
-    //             ExpectedIdentifier::new("".to_owned()),
-    //         ];
-    //
-    //         let zipped: Vec<_> = program.statements.iter().zip(tests.iter()).collect();
-    //
-    //         for (stmt, test) in zipped {
-    //             if let Statements::Let(let_) = stmt {
-    //                 assert_eq!(let_.name.value, test.identifier);
-    //             }
-    //         }
-    //     }
-    //
-    //     #[test]
-    //     fn test_identifier_expression() {
-    //         let input = "foobar;";
-    //
-    //         let mut parser = Parser::new(input);
-    //         let program = parser.parse_program();
-    //
-    //         assert!(parser.errors.is_empty());
-    //         let stmt = &program.statements[0];
-    //         if let Statements::Expression(expr) = stmt {
-    //             let ident = expr.expression.clone().unwrap();
-    //             if let Expressions::Identifier(ident) = ident {
-    //                 assert_eq!(ident.value, "foobar");
-    //                 assert_eq!(ident.token.literal(), "foobar");
-    //             } else {
-    //                 panic!("Not expected expression");
-    //             }
-    //             // assert_eq!(ident.value, "foobar");
-    //         } else {
-    //             panic!("Not expected statement");
-    //         }
-    //     }
+    #[test]
+    fn test_let_statements() {
+        let input = "
+            let x = 5;
+            let y = 10;
+            let foobar = 838383;
+        let 7718;
+            ";
 
-    // #[test]
-    // fn test_integer_literal_expression() {
-    //     let input = "5;";
-    //
-    //     let mut parser = Parser::new(input);
-    //     let program = parser.parse_program();
-    //     println!("{:?}", parser);
-    //
-    //     assert!(parser.errors.is_empty());
-    //
-    //     let stmt = &program.statements[0];
-    //     println!("STATEMENT: {:?}", stmt);
-    //     if let Statements::Expression(expr) = stmt {
-    //         let int_lit = expr.expression.clone().unwrap();
-    //         if let Expressions::Int(int) = int_lit {
-    //             assert_eq!(int.value, 5);
-    //             assert_eq!(int.token_literal(), "5");
-    //         } else {
-    //             panic!("Not expected expression");
-    //         }
-    //     } else {
-    //         panic!("Not expected statement");
-    //     }
-    // }
+        let mut parser = Parser::new(input);
+        let program = parser.parse_program();
+
+        assert_eq!(program.statements.len(), 4);
+
+        let tests: Vec<ExpectedIdentifier> = vec![
+            ExpectedIdentifier::new("x".to_owned()),
+            ExpectedIdentifier::new("y".to_owned()),
+            ExpectedIdentifier::new("foobar".to_owned()),
+        ];
+
+        let zipped: Vec<_> = program.statements.iter().zip(tests.iter()).collect();
+
+        for (stmt, test) in zipped {
+            if let Statements::Let(let_) = stmt {
+                assert_eq!(let_.name.value, test.identifier);
+            }
+        }
+    }
+
+    #[test]
+    fn test_no_token_err() {
+        let input = "";
+        let mut parser = Parser::new(input);
+        parser.parse_program();
+
+        assert_eq!(parser.errors.len(), 1);
+    }
+
+    #[test]
+    fn test_return_statements() {
+        let input = "
+    return 5;
+    return 10;
+    return 993322;
+    ";
+        let mut parser = Parser::new(input);
+        let program = parser.parse_program();
+
+        assert!(parser.errors.is_empty());
+
+        let tests: Vec<ExpectedIdentifier> = vec![
+            ExpectedIdentifier::new("".to_owned()),
+            ExpectedIdentifier::new("".to_owned()),
+            ExpectedIdentifier::new("".to_owned()),
+        ];
+
+        let zipped: Vec<_> = program.statements.iter().zip(tests.iter()).collect();
+
+        for (stmt, test) in zipped {
+            if let Statements::Let(let_) = stmt {
+                assert_eq!(let_.name.value, test.identifier);
+            }
+        }
+    }
+
+    #[test]
+    fn test_identifier_expression() {
+        let input = "foobar;";
+
+        let mut parser = Parser::new(input);
+        let program = parser.parse_program();
+
+        assert!(parser.errors.is_empty());
+        let stmt = &program.statements[0];
+        if let Statements::Expression(expr) = stmt {
+            let ident = expr.expression.clone().unwrap();
+            if let Expressions::Identifier(ident) = ident {
+                assert_eq!(ident.value, "foobar");
+                assert_eq!(ident.token.literal(), "foobar");
+            } else {
+                panic!("Not expected expression");
+            }
+            // assert_eq!(ident.value, "foobar");
+        } else {
+            panic!("Not expected statement");
+        }
+    }
+
+    #[test]
+    fn test_integer_literal_expression() {
+        let input = "5;";
+
+        let mut parser = Parser::new(input);
+        let program = parser.parse_program();
+
+        assert!(parser.errors.is_empty());
+
+        let stmt = &program.statements[0];
+        if let Statements::Expression(expr) = stmt {
+            let int_lit = expr.expression.clone().unwrap();
+            if let Expressions::Int(int) = int_lit {
+                assert_eq!(int.value, 5);
+                assert_eq!(int.token_literal(), "5");
+            } else {
+                panic!("Not expected expression");
+            }
+        } else {
+            panic!("Not expected statement");
+        }
+    }
 
     fn test_integer_literal(il: Expressions, value: i64) -> bool {
         let int = if let Expressions::Int(int) = il {
@@ -584,112 +581,224 @@ mod tests {
         true
     }
 
-    // #[test]
-    // fn test_parsing_prefix_expressions() {
-    //     struct PrefixTest {
-    //         input: String,
-    //         operator: String,
-    //         integer_value: i64,
-    //     }
-    //
-    //     impl PrefixTest {
-    //         fn new(input: String, operator: String, integer_value: i64) -> Self {
-    //             PrefixTest {
-    //                 input,
-    //                 operator,
-    //                 integer_value,
-    //             }
-    //         }
-    //     }
-    //
-    //     let prefix_tests: [PrefixTest; 2] = [
-    //         PrefixTest::new("!5;".to_owned(), "!".to_owned(), 5),
-    //         PrefixTest::new("-15".to_owned(), "-".to_owned(), 15),
-    //     ];
-    //
-    //     for pt in prefix_tests.into_iter() {
-    //         let mut parser = Parser::new(&pt.input);
-    //         let program = parser.parse_program();
-    //
-    //         println!("ERRORS: {:?}", parser.errors);
-    //         assert!(parser.errors.is_empty());
-    //         println!("statements: {:?}", program.statements);
-    //         assert_eq!(program.statements.len(), 1);
-    //
-    //         let stmt = &program.statements[0];
-    //
-    //         if let Statements::Expression(expr) = stmt {
-    //             let prefix_expr = expr.expression.clone().unwrap();
-    //             if let Expressions::PrefixExpr(prefix_expr) = prefix_expr {
-    //                 assert_eq!(prefix_expr.operator, pt.operator);
-    //                 assert!(test_integer_literal(*prefix_expr.right, pt.integer_value));
-    //             } else {
-    //                 panic!("Not expected expression");
-    //             }
-    //         } else {
-    //             panic!("Not expected statement");
-    //         }
-    //     }
-    // }
+    #[test]
+    fn test_parsing_prefix_expressions() {
+        #[derive(Debug, PartialEq, Eq)]
+        enum ResType {
+            Int(i64),
+            Bool(bool),
+        }
 
-    // #[test]
-    // fn test_parsing_infix_expressions() {
-    //     // Infix <expression> <infix operator> <expression>
-    //     struct InfixTest {
-    //         input: String,
-    //         left_value: i64,
-    //         operator: String,
-    //         right_value: i64,
-    //     }
-    //
-    //     impl InfixTest {
-    //         fn new(input: String, left_value: i64, operator: String, right_value: i64) -> Self {
-    //             InfixTest {
-    //                 input,
-    //                 left_value,
-    //                 operator,
-    //                 right_value,
-    //             }
-    //         }
-    //     }
-    //
-    //     let infix_tests: [InfixTest; 8] = [
-    //         InfixTest::new("5 + 5".to_owned(), 5, "+".to_owned(), 5),
-    //         InfixTest::new("5 - 5".to_owned(), 5, "-".to_owned(), 5),
-    //         InfixTest::new("5 * 5".to_owned(), 5, "*".to_owned(), 5),
-    //         InfixTest::new("5 / 5".to_owned(), 5, "/".to_owned(), 5),
-    //         InfixTest::new("5 > 5".to_owned(), 5, ">".to_owned(), 5),
-    //         InfixTest::new("5 < 5".to_owned(), 5, "<".to_owned(), 5),
-    //         InfixTest::new("5 == 5".to_owned(), 5, "==".to_owned(), 5),
-    //         InfixTest::new("5 != 5".to_owned(), 5, "!=".to_owned(), 5),
-    //     ];
-    //
-    //     for infix in infix_tests.into_iter() {
-    //         let mut parser = Parser::new(&infix.input);
-    //         let program = parser.parse_program();
-    //
-    //         println!("ERRORS: {:?}", parser.errors);
-    //         assert!(parser.errors.is_empty());
-    //         println!("statements: {:?}", program.statements);
-    //         assert_eq!(program.statements.len(), 1);
-    //
-    //         let stmt = &program.statements[0];
-    //
-    //         if let Statements::Expression(expr) = stmt {
-    //             let infix_expr = expr.expression.clone().unwrap();
-    //             if let Expressions::InfixExpr(expr) = infix_expr {
-    //                 assert!(test_integer_literal(*expr.left, infix.left_value));
-    //                 assert_eq!(expr.operator, infix.operator);
-    //                 assert!(test_integer_literal(*expr.right, infix.right_value));
-    //             } else {
-    //                 panic!("Not expected expression");
-    //             }
-    //         } else {
-    //             panic!("Not expected statement");
-    //         }
-    //     }
-    // }
-    //
+        impl ResType {
+            fn int(&self) -> i64 {
+                match self {
+                    ResType::Int(v) => *v,
+                    _ => panic!("Not an int"),
+                }
+            }
+
+            fn bool(&self) -> bool {
+                match self {
+                    ResType::Bool(v) => *v,
+                    _ => panic!("Not a bool"),
+                }
+            }
+        }
+
+        struct PrefixTest {
+            input: String,
+            operator: String,
+            value: ResType,
+        }
+
+        impl PrefixTest {
+            fn new(input: String, operator: String, value: ResType) -> Self {
+                PrefixTest {
+                    input,
+                    operator,
+                    value,
+                }
+            }
+        }
+
+        let prefix_tests: [PrefixTest; 2] = [
+            PrefixTest::new("!5;".to_owned(), "!".to_owned(), ResType::Int(5)),
+            PrefixTest::new("-15".to_owned(), "-".to_owned(), ResType::Int(15)),
+        ];
+
+        for pt in prefix_tests.into_iter() {
+            let mut parser = Parser::new(&pt.input);
+            let program = parser.parse_program();
+
+            assert!(parser.errors.is_empty());
+            assert_eq!(program.statements.len(), 1);
+
+            let stmt = &program.statements[0];
+
+            if let Statements::Expression(expr) = stmt {
+                let prefix_expr = expr.expression.clone().unwrap();
+                if let Expressions::PrefixExpr(prefix_expr) = prefix_expr {
+                    assert_eq!(prefix_expr.operator, pt.operator);
+                    match pt.value {
+                        ResType::Int(v) => assert!(test_integer_literal(*prefix_expr.right, v)),
+                        ResType::Bool(v) => assert!(test_boolean_literal(*prefix_expr.right, v)),
+                    }
+                } else {
+                    panic!("Not expected expression");
+                }
+            } else {
+                panic!("Not expected statement");
+            }
+        }
+    }
+
+    #[test]
+    fn test_parsing_infix_expressions() {
+        #[derive(Debug, PartialEq, Eq)]
+        enum ResType {
+            Int(i64),
+            Bool(bool),
+        }
+
+        impl ResType {
+            fn int(&self) -> i64 {
+                match self {
+                    ResType::Int(v) => *v,
+                    _ => panic!("Not an int"),
+                }
+            }
+
+            fn bool(&self) -> bool {
+                match self {
+                    ResType::Bool(v) => *v,
+                    _ => panic!("Not a bool"),
+                }
+            }
+        }
+
+        // Infix <expression> <infix operator> <expression>
+        struct InfixTest {
+            input: String,
+            left_value: ResType,
+            operator: String,
+            right_value: ResType,
+        }
+
+        impl InfixTest {
+            fn new(
+                input: String,
+                left_value: ResType,
+                operator: String,
+                right_value: ResType,
+            ) -> Self {
+                InfixTest {
+                    input,
+                    left_value,
+                    operator,
+                    right_value,
+                }
+            }
+        }
+
+        let infix_tests: [InfixTest; 11] = [
+            InfixTest::new(
+                "5 + 5".to_owned(),
+                ResType::Int(5),
+                "+".to_owned(),
+                ResType::Int(5),
+            ),
+            InfixTest::new(
+                "5 - 5".to_owned(),
+                ResType::Int(5),
+                "-".to_owned(),
+                ResType::Int(5),
+            ),
+            InfixTest::new(
+                "5 * 5".to_owned(),
+                ResType::Int(5),
+                "*".to_owned(),
+                ResType::Int(5),
+            ),
+            InfixTest::new(
+                "5 / 5".to_owned(),
+                ResType::Int(5),
+                "/".to_owned(),
+                ResType::Int(5),
+            ),
+            InfixTest::new(
+                "5 > 5".to_owned(),
+                ResType::Int(5),
+                ">".to_owned(),
+                ResType::Int(5),
+            ),
+            InfixTest::new(
+                "5 < 5".to_owned(),
+                ResType::Int(5),
+                "<".to_owned(),
+                ResType::Int(5),
+            ),
+            InfixTest::new(
+                "5 == 5".to_owned(),
+                ResType::Int(5),
+                "==".to_owned(),
+                ResType::Int(5),
+            ),
+            InfixTest::new(
+                "5 != 5".to_owned(),
+                ResType::Int(5),
+                "!=".to_owned(),
+                ResType::Int(5),
+            ),
+            InfixTest::new(
+                "true == true".to_owned(),
+                ResType::Bool(true),
+                "==".to_owned(),
+                ResType::Bool(true),
+            ),
+            InfixTest::new(
+                "true != false".to_owned(),
+                ResType::Bool(true),
+                "!=".to_owned(),
+                ResType::Bool(false),
+            ),
+            InfixTest::new(
+                "false == false".to_owned(),
+                ResType::Bool(false),
+                "==".to_owned(),
+                ResType::Bool(false),
+            ),
+        ];
+
+        for infix in infix_tests.into_iter() {
+            let mut parser = Parser::new(&infix.input);
+            let program = parser.parse_program();
+
+            assert!(parser.errors.is_empty());
+            assert_eq!(program.statements.len(), 1);
+
+            let stmt = &program.statements[0];
+
+            if let Statements::Expression(expr) = stmt {
+                let infix_expr = expr.expression.clone().unwrap();
+                if let Expressions::InfixExpr(expr) = infix_expr {
+                    match infix.left_value {
+                        ResType::Int(v) => assert!(test_integer_literal(*expr.left, v)),
+                        ResType::Bool(v) => assert!(test_boolean_literal(*expr.left, v)),
+                    }
+                    assert_eq!(expr.operator, infix.operator);
+                    match infix.right_value {
+                        ResType::Int(v) => assert!(test_integer_literal(*expr.right, v)),
+                        ResType::Bool(v) => assert!(test_boolean_literal(*expr.right, v)),
+                    }
+                } else {
+                    panic!("Not expected expression");
+                }
+            } else {
+                panic!("Not expected statement");
+            }
+        }
+    }
+
     fn test_identifier(expr: Expressions, value: String) -> bool {
         let ident = if let Expressions::Identifier(ident) = expr {
             ident
@@ -718,13 +827,35 @@ mod tests {
     enum Expected {
         Int(i64),
         String(String),
+        Boolean(bool),
     }
 
     fn test_literal_expression(expr: Expressions, expected: Expected) -> bool {
         match expected {
             Expected::Int(int) => test_integer_literal(expr, int),
             Expected::String(str) => test_identifier(expr, str),
+            Expected::Boolean(bool_) => test_boolean_literal(expr, bool_),
         }
+    }
+
+    fn test_boolean_literal(expr: Expressions, bool_: bool) -> bool {
+        let b = if let Expressions::Boolean(b) = expr {
+            b
+        } else {
+            return false;
+        };
+
+        if b.value != bool_ {
+            println!("b.value not {}. got={}", bool_, b.value);
+            return false;
+        }
+
+        if b.token_literal() != format!("{}", bool_) {
+            println!("b.token_literal not {}. got={}", bool_, b.token_literal());
+            return false;
+        }
+
+        true
     }
 
     fn test_infix_expression(
@@ -809,7 +940,7 @@ mod tests {
             }
         }
 
-        let tests: [OperatorPrecendence; 12] = [
+        let tests: [OperatorPrecendence; 16] = [
             OperatorPrecendence::new("-a * b", "((-a) * b)"),
             OperatorPrecendence::new("!-a", "(!(-a))"),
             OperatorPrecendence::new("a + b + c", "((a + b) + c)"),
@@ -825,6 +956,10 @@ mod tests {
                 "3 + 4 * 5 == 3 * 1 + 4 * 5",
                 "((3 + (4 * 5)) == ((3 * 1) + (4 * 5)))",
             ),
+            OperatorPrecendence::new("true", "true"),
+            OperatorPrecendence::new("false", "false"),
+            OperatorPrecendence::new("3 > 5 == false", "((3 > 5) == false)"),
+            OperatorPrecendence::new("3 < 5 == true", "((3 < 5) == true)"),
         ];
 
         for t in tests.into_iter() {
