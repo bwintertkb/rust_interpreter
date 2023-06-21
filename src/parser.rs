@@ -8,8 +8,9 @@ use once_cell::sync::Lazy;
 
 use crate::{
     ast::{
-        Boolean, ExpressionStatement, Expressions, Identifier, InfixExpression, IntegerLiteral,
-        LetStatement, PrefixExpression, Program, ReturnStatement, StatementStruct, Statements,
+        BlockStatement, Boolean, ExpressionStatement, Expressions, Identifier, IfExpression,
+        InfixExpression, IntegerLiteral, LetStatement, PrefixExpression, Program, ReturnStatement,
+        StatementStruct, Statements,
     },
     lexer::{Lexer, Token},
 };
@@ -102,6 +103,8 @@ impl Parser {
         parser.register_prefix(Token::Minus.token_literal());
         parser.register_prefix(Token::True.token_literal());
         parser.register_prefix(Token::False.token_literal());
+        parser.register_prefix(Token::LParen.token_literal());
+        parser.register_prefix(Token::If.token_literal());
 
         parser.register_infix(Token::Plus.token_literal());
         parser.register_infix(Token::Minus.token_literal());
@@ -311,6 +314,64 @@ impl Parser {
         )
     }
 
+    pub fn parse_grouped_expression(&mut self) -> Expressions {
+        self.next_token();
+
+        let exp = self.parse_expression(Iota::Lowest as usize);
+        if !self.expect_peek(Token::RParen) {
+            panic!("Expected RParen")
+        }
+        exp.unwrap()
+    }
+
+    pub fn parse_if_expression(&mut self) -> IfExpression {
+        if !self.expect_peek(Token::LParen) {
+            panic!("Expected LParen");
+        }
+
+        self.next_token();
+        let parsed_expr = self.parse_expression(Iota::Lowest as usize).unwrap();
+
+        if !self.expect_peek(Token::RParen) {
+            panic!("Expected RParen");
+        }
+
+        if !self.expect_peek(Token::LBrace) {
+            panic!("Expected LBrace");
+        }
+
+        let consequence = self.parse_block_statement();
+
+        let alternative = if self.peek_token_is(&Token::Else) {
+            self.next_token();
+            if !self.expect_peek(Token::LBrace) {
+                panic!("Expected LBrace");
+            }
+            Some(self.parse_block_statement())
+        } else {
+            None
+        };
+
+        IfExpression::new(parsed_expr, consequence, alternative)
+    }
+
+    pub fn parse_block_statement(&mut self) -> BlockStatement {
+        let curr_token = self.curr_token.clone().unwrap();
+
+        let mut block = BlockStatement::new(curr_token, Vec::new());
+
+        self.next_token();
+
+        while !self.curr_token_is(Token::RBrace) && !self.curr_token_is(Token::EOF) {
+            let stmt = self.parse_statement();
+            if let Ok(stmt) = stmt {
+                block.statements.push(stmt);
+            }
+            self.next_token();
+        }
+        block
+    }
+
     pub fn parse_expression(&mut self, precedence: usize) -> Option<Expressions> {
         let token = self.curr_token.as_ref().unwrap().clone();
         let prefix_fn = match self.parser_prefix_fn.fns.get(&token.token_literal()) {
@@ -392,6 +453,8 @@ fn parse_prefix_expression(p: &mut Parser) -> Expressions {
         Token::Int(_) => Expressions::Int(p.parse_integer_literal()),
         Token::True | Token::False => Expressions::Boolean(p.parse_boolean()),
         Token::Minus | Token::Bang => Expressions::PrefixExpr(p.parse_prefix_expression()),
+        Token::LParen => p.parse_grouped_expression(),
+        Token::If => Expressions::IfExpr(Box::new(p.parse_if_expression())),
         _ => panic!("Not implemented"),
     }
 }
@@ -928,6 +991,79 @@ mod tests {
     }
 
     #[test]
+    fn test_if_expression() {
+        let input: &str = "if(x<y){x}";
+        let mut parser = Parser::new(input);
+        let program = parser.parse_program();
+        assert!(parser.errors.is_empty());
+        let stmt = &program.statements[0];
+        let if_ = if let Statements::Expression(expr) = stmt {
+            let expr = expr.expression.as_ref().unwrap();
+            if let Expressions::IfExpr(if_) = expr {
+                assert_eq!(if_.consequence.statements.len(), 1);
+                assert!(if_.alternative.is_none());
+                if_
+            } else {
+                panic!("Not expected expression");
+            }
+        } else {
+            panic!("Not expected statement");
+        };
+
+        let stmt = &if_.consequence.statements[0];
+        if let Statements::Expression(expr) = stmt {
+            let expr = expr.expression.as_ref().unwrap();
+            assert!(test_identifier(expr.clone(), "x".to_owned()));
+        } else {
+            panic!("Not expected statement");
+        }
+    }
+
+    #[test]
+    fn test_if_else_expression() {
+        let input: &str = "if (x < y) { x } else { y }";
+        let mut parser = Parser::new(input);
+        let program = parser.parse_program();
+        assert!(parser.errors.is_empty());
+        let stmt = &program.statements[0];
+        let if_ = if let Statements::Expression(expr) = stmt {
+            let expr = expr.expression.as_ref().unwrap();
+            if let Expressions::IfExpr(if_) = expr {
+                assert!(test_infix_expression(
+                    if_.condition.clone(),
+                    Expected::String("x".to_owned()),
+                    "<".to_owned(),
+                    Expected::String("y".to_owned()),
+                ));
+                assert_eq!(if_.consequence.statements.len(), 1);
+                if_
+            } else {
+                panic!("Not expected expression");
+            }
+        } else {
+            panic!("Not expected statement");
+        };
+
+        let stmt = &if_.consequence.statements[0];
+        if let Statements::Expression(expr) = stmt {
+            let expr = expr.expression.as_ref().unwrap();
+            assert!(test_identifier(expr.clone(), "x".to_owned()));
+        } else {
+            panic!("Not expected statement");
+        }
+
+        assert!(if_.alternative.is_some());
+        let alternative = if_.alternative.clone().unwrap();
+        assert_eq!(alternative.statements.len(), 1);
+        if let Statements::Expression(expr) = stmt {
+            let expr = expr.expression.as_ref().unwrap();
+            assert!(test_identifier(expr.clone(), "x".to_owned()));
+        } else {
+            panic!("Not expected statement");
+        }
+    }
+
+    #[test]
     fn test_operator_precedence_parsing() {
         struct OperatorPrecendence {
             input: &'static str,
@@ -940,7 +1076,7 @@ mod tests {
             }
         }
 
-        let tests: [OperatorPrecendence; 16] = [
+        let tests: [OperatorPrecendence; 21] = [
             OperatorPrecendence::new("-a * b", "((-a) * b)"),
             OperatorPrecendence::new("!-a", "(!(-a))"),
             OperatorPrecendence::new("a + b + c", "((a + b) + c)"),
@@ -960,6 +1096,11 @@ mod tests {
             OperatorPrecendence::new("false", "false"),
             OperatorPrecendence::new("3 > 5 == false", "((3 > 5) == false)"),
             OperatorPrecendence::new("3 < 5 == true", "((3 < 5) == true)"),
+            OperatorPrecendence::new("1 + (2 + 3) + 4", "((1 + (2 + 3)) + 4)"),
+            OperatorPrecendence::new("(5 + 5) * 2", "((5 + 5) * 2)"),
+            OperatorPrecendence::new("2 / (5 + 5)", "(2 / (5 + 5))"),
+            OperatorPrecendence::new("-(5 + 5)", "(-(5 + 5))"),
+            OperatorPrecendence::new("!(true == true)", "(!(true == true))"),
         ];
 
         for t in tests.into_iter() {

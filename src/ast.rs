@@ -188,6 +188,77 @@ impl Node for Boolean {
 }
 
 #[derive(Debug, Clone)]
+pub struct IfExpression {
+    pub token: Token,
+    pub condition: Expressions,
+    pub consequence: BlockStatement,
+    pub alternative: Option<BlockStatement>,
+}
+
+impl IfExpression {
+    pub fn new(
+        condition: Expressions,
+        consequence: BlockStatement,
+        alternative: Option<BlockStatement>,
+    ) -> Self {
+        IfExpression {
+            token: Token::If,
+            condition,
+            consequence,
+            alternative,
+        }
+    }
+
+    pub fn string(&self) -> String {
+        let mut string_buffer = format!(
+            "if{} {}",
+            self.condition.string(),
+            self.consequence.string()
+        );
+
+        if let Some(alternative) = &self.alternative {
+            string_buffer.push_str(&format!("else {}", alternative.string()));
+        }
+
+        string_buffer
+    }
+}
+
+impl Node for IfExpression {
+    fn token_literal(&self) -> String {
+        self.token.token_literal()
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct BlockStatement {
+    pub token: Token,
+    pub statements: Vec<Statements>,
+}
+
+impl BlockStatement {
+    pub fn new(token: Token, statements: Vec<Statements>) -> Self {
+        BlockStatement { token, statements }
+    }
+
+    pub fn string(&self) -> String {
+        let mut string_buffer = String::new();
+
+        self.statements.iter().for_each(|s| {
+            string_buffer.push_str(&s.string());
+        });
+
+        string_buffer
+    }
+}
+
+impl Node for BlockStatement {
+    fn token_literal(&self) -> String {
+        self.token.token_literal()
+    }
+}
+
+#[derive(Debug, Clone)]
 pub struct LetStatement {
     pub token: Token,
     pub name: Identifier,
@@ -303,6 +374,7 @@ pub enum Expressions {
     Identifier(Identifier),
     Int(IntegerLiteral),
     Boolean(Boolean),
+    IfExpr(Box<IfExpression>),
     PrefixExpr(PrefixExpression),
     InfixExpr(InfixExpression),
     TODO,
