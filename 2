@@ -268,7 +268,6 @@ impl Parser {
         println!("curr_token: {:?}", self.curr_token);
         let mut stmt = ExpressionStatement::new(self.curr_token.clone().unwrap());
         stmt.expression = self.parse_expression(Iota::Lowest as usize);
-        println!("stmt: {:?}", stmt);
 
         if self.peek_token_is(&Token::Semicolon) {
             self.next_token();
@@ -341,12 +340,14 @@ impl Parser {
     }
 
     pub fn parse_call_expression(&mut self, expr: Expressions) -> Expressions {
+        println!("curr_token CALL EXPRESSION: {:?}", self.curr_token);
         let arguments = self.parse_call_arguments();
         Expressions::Call(Box::new(CallExpression::new(expr, arguments)))
     }
 
     pub fn parse_call_arguments(&mut self) -> Vec<Expressions> {
         let mut args: Vec<Expressions> = Vec::new();
+        println!("curr_token ARGS: {:?}", self.curr_token);
 
         if self.peek_token_is(&Token::RParen) {
             self.next_token();
@@ -397,7 +398,7 @@ impl Parser {
     }
 
     pub fn parse_grouped_expression(&mut self) -> Expressions {
-        println!("curr_token GROUPED: {:?}", self.curr_token);
+        println!("curr_token GROUPED EXPRESSION: {:?}", self.curr_token);
         self.next_token();
 
         let exp = self.parse_expression(Iota::Lowest as usize);
@@ -457,10 +458,10 @@ impl Parser {
 
     pub fn parse_expression(&mut self, precedence: usize) -> Option<Expressions> {
         let token = self.curr_token.as_ref().unwrap().clone();
+        println!("curr_token PARSE EXPRESSION: {:?}", token);
         let prefix_fn = match self.parser_prefix_fn.fns.get(&token.token_literal()) {
             Some(fn_) => fn_,
             None => {
-                println!("No prefix parse function for: {:?}", token);
                 self.no_prefix_parse_fn_error(&token);
                 return None;
             }
@@ -480,8 +481,10 @@ impl Parser {
 
             self.next_token();
 
+            println!("LEFT EXPR222222222222222: {:?}", left_expr);
             left_expr = infix_fn(self, left_expr);
         }
+        println!("LEFT EXPR: {:?}", left_expr);
         Some(left_expr)
     }
 
@@ -545,10 +548,13 @@ fn parse_prefix_expression(p: &mut Parser) -> Expressions {
 }
 
 fn parse_infix_expression(p: &mut Parser, expression: Expressions) -> Expressions {
-    if p.curr_token_is(Token::LParen) {
-        return p.parse_call_expression(expression);
+    match expression {
+        Expressions::Call(_) => p.parse_call_expression(expression),
+        _ => {
+            let infix = p.parse_infix_expression(expression);
+            Expressions::InfixExpr(infix)
+        }
     }
-    Expressions::InfixExpr(p.parse_infix_expression(expression))
 }
 
 #[derive(Debug)]
@@ -1256,7 +1262,6 @@ mod tests {
         let mut parser = Parser::new(input);
         let program = parser.parse_program();
 
-        println!("Errors: {:?}", parser.errors);
         assert!(parser.errors.is_empty());
         assert_eq!(program.statements.len(), 1);
 

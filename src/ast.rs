@@ -142,6 +142,42 @@ impl Node for FunctionLiteral {
 }
 
 #[derive(Debug, Clone)]
+pub struct CallExpression {
+    pub token: Token,          // The '(' token
+    pub function: Expressions, //Identifier or Function literal
+    pub arguments: Vec<Expressions>,
+}
+
+impl CallExpression {
+    pub fn new(function: Expressions, arguments: Vec<Expressions>) -> Self {
+        CallExpression {
+            token: Token::LParen,
+            function,
+            arguments,
+        }
+    }
+
+    pub fn string(&self) -> String {
+        let mut string_buffer = String::new();
+
+        let args: Vec<String> = self.arguments.iter().map(|a| a.string()).collect();
+
+        string_buffer.push_str(&self.function.string());
+        string_buffer.push('(');
+        string_buffer.push_str(&args.join(", "));
+        string_buffer.push(')');
+
+        string_buffer
+    }
+}
+
+impl Node for CallExpression {
+    fn token_literal(&self) -> String {
+        self.token.literal()
+    }
+}
+
+#[derive(Debug, Clone)]
 pub struct PrefixExpression {
     pub token: Token,
     pub operator: String,
@@ -415,6 +451,7 @@ pub enum Expressions {
     PrefixExpr(PrefixExpression),
     InfixExpr(InfixExpression),
     Fn(FunctionLiteral),
+    Call(Box<CallExpression>),
     TODO,
 }
 
@@ -426,6 +463,9 @@ impl Expressions {
             Expressions::PrefixExpr(prefix) => prefix.string(),
             Expressions::InfixExpr(infix) => infix.string(),
             Expressions::Boolean(bool_) => bool_.string(),
+            Expressions::IfExpr(if_expr) => if_expr.string(),
+            Expressions::Fn(fn_expr) => fn_expr.string(),
+            Expressions::Call(call_expr) => call_expr.string(),
             _ => panic!("Not implemented"),
         }
     }
