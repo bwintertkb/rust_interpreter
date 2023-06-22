@@ -8,9 +8,9 @@ use once_cell::sync::Lazy;
 
 use crate::{
     ast::{
-        BlockStatement, Boolean, ExpressionStatement, Expressions, Identifier, IfExpression,
-        InfixExpression, IntegerLiteral, LetStatement, PrefixExpression, Program, ReturnStatement,
-        StatementStruct, Statements,
+        BlockStatement, Boolean, ExpressionStatement, Expressions, FunctionLiteral, Identifier,
+        IfExpression, InfixExpression, IntegerLiteral, LetStatement, PrefixExpression, Program,
+        ReturnStatement, StatementStruct, Statements,
     },
     lexer::{Lexer, Token},
 };
@@ -105,6 +105,7 @@ impl Parser {
         parser.register_prefix(Token::False.token_literal());
         parser.register_prefix(Token::LParen.token_literal());
         parser.register_prefix(Token::If.token_literal());
+        parser.register_prefix(Token::Function.token_literal());
 
         parser.register_infix(Token::Plus.token_literal());
         parser.register_infix(Token::Minus.token_literal());
@@ -287,6 +288,54 @@ impl Parser {
         Boolean::new(curr_token, self.curr_token_is(Token::True))
     }
 
+    pub fn parse_function_literal(&mut self) -> FunctionLiteral {
+        if !self.expect_peek(Token::LParen) {
+            panic!("Expected LParen");
+        }
+
+        let parameters = self.parse_function_parameters();
+
+        if !self.expect_peek(Token::LBrace) {
+            panic!("Expected LParen");
+        }
+
+        let body = self.parse_block_statement();
+
+        FunctionLiteral::new(parameters, body)
+    }
+
+    pub fn parse_function_parameters(&mut self) -> Vec<Identifier> {
+        let mut identifiers = Vec::new();
+
+        if self.peek_token_is(&Token::RParen) {
+            self.next_token();
+            return identifiers;
+        }
+
+        self.next_token();
+
+        let curr_token = self.curr_token.clone().unwrap();
+        let value = curr_token.literal();
+        let iden = Identifier::new(curr_token, value);
+        identifiers.push(iden);
+
+        while self.peek_token_is(&Token::Comma) {
+            self.next_token();
+            self.next_token();
+
+            let curr_token = self.curr_token.clone().unwrap();
+            let value = curr_token.literal();
+            let iden = Identifier::new(curr_token, value);
+            identifiers.push(iden);
+        }
+
+        if !self.expect_peek(Token::RParen) {
+            panic!("Expected RParen");
+        }
+
+        identifiers
+    }
+
     pub fn parse_prefix_expression(&mut self) -> PrefixExpression {
         let curr_token = self.curr_token.clone().unwrap();
         let token_literal = curr_token.token_literal();
@@ -455,6 +504,7 @@ fn parse_prefix_expression(p: &mut Parser) -> Expressions {
         Token::Minus | Token::Bang => Expressions::PrefixExpr(p.parse_prefix_expression()),
         Token::LParen => p.parse_grouped_expression(),
         Token::If => Expressions::IfExpr(Box::new(p.parse_if_expression())),
+        Token::Function => Expressions::Fn(p.parse_function_literal()),
         _ => panic!("Not implemented"),
     }
 }
@@ -1060,6 +1110,105 @@ mod tests {
             assert!(test_identifier(expr.clone(), "x".to_owned()));
         } else {
             panic!("Not expected statement");
+        }
+    }
+
+    #[test]
+    fn test_function_literal_parsing() {
+        let input = "fn(x,y){x+y;}";
+
+        let mut parser = Parser::new(input);
+        let program = parser.parse_program();
+
+        assert!(parser.errors.is_empty());
+        assert_eq!(program.statements.len(), 1);
+
+        let stmt = &program.statements[0];
+
+        let fn_lit = if let Statements::Expression(fn_) = stmt {
+            let fn_ = fn_.expression.as_ref().unwrap().clone();
+            if let Expressions::Fn(fn_) = fn_ {
+                fn_
+            } else {
+                panic!("Not expected expression");
+            }
+        } else {
+            panic!("Not expected statement");
+        };
+
+        assert_eq!(fn_lit.parameters.len(), 2);
+
+        assert!(test_literal_expression(
+            Expressions::Identifier(fn_lit.parameters[0].clone()),
+            Expected::String("x".to_owned())
+        ));
+        assert!(test_literal_expression(
+            Expressions::Identifier(fn_lit.parameters[1].clone()),
+            Expected::String("y".to_owned())
+        ));
+
+        assert_eq!(fn_lit.body.statements.len(), 1);
+        let body_stmt = &fn_lit.body.statements[0];
+
+        let body_expr = if let Statements::Expression(body) = body_stmt {
+            body.expression.as_ref().unwrap().clone()
+        } else {
+            panic!("Not expected statement");
+        };
+
+        assert!(test_infix_expression(
+            body_expr,
+            Expected::String("x".to_owned()),
+            "+".to_owned(),
+            Expected::String("y".to_owned())
+        ));
+    }
+
+    #[test]
+    fn test_function_parameter_parsing() {
+        struct ExpectedParams {
+            input: &'static str,
+            expected_params: Vec<&'static str>,
+        }
+
+        impl ExpectedParams {
+            fn new(input: &'static str, expected_params: Vec<&'static str>) -> Self {
+                ExpectedParams {
+                    input,
+                    expected_params,
+                }
+            }
+        }
+
+        let tests: [ExpectedParams; 3] = [
+            ExpectedParams::new("fn(){}", Vec::new()),
+            ExpectedParams::new("fn(x){}", vec!["x"]),
+            ExpectedParams::new("fn(x, y, z){}", vec!["x", "y", "z"]),
+        ];
+
+        for t in tests.into_iter() {
+            let mut parser = Parser::new(t.input);
+            let program = parser.parse_program();
+            assert!(parser.errors.is_empty());
+            let stmt = &program.statements[0];
+            let fn_ = if let Statements::Expression(expr) = stmt {
+                let expr = expr.expression.as_ref().unwrap();
+                if let Expressions::Fn(fn_) = expr {
+                    fn_
+                } else {
+                    panic!("Not expected expression");
+                }
+            } else {
+                panic!("Not expected statement");
+            };
+
+            assert_eq!(fn_.parameters.len(), t.expected_params.len());
+            for (i, param) in fn_.parameters.iter().enumerate() {
+                assert!(test_literal_expression(
+                    Expressions::Identifier(param.clone()),
+                    Expected::String(t.expected_params[i].to_owned())
+                ));
+            }
         }
     }
 

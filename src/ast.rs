@@ -105,6 +105,43 @@ impl Node for IntegerLiteral {
 }
 
 #[derive(Debug, Clone)]
+pub struct FunctionLiteral {
+    pub token: Token,
+    pub parameters: Vec<Identifier>,
+    pub body: BlockStatement,
+}
+
+impl FunctionLiteral {
+    pub fn new(parameters: Vec<Identifier>, body: BlockStatement) -> Self {
+        FunctionLiteral {
+            token: Token::Function,
+            parameters,
+            body,
+        }
+    }
+
+    pub fn string(&self) -> String {
+        let mut string_buffer = String::new();
+
+        let params: Vec<String> = self.parameters.iter().map(|p| p.string()).collect();
+
+        string_buffer.push_str(&self.token_literal());
+        string_buffer.push('(');
+        string_buffer.push_str(&params.join(", "));
+        string_buffer.push_str(") ");
+        string_buffer.push_str(&self.body.string());
+
+        string_buffer
+    }
+}
+
+impl Node for FunctionLiteral {
+    fn token_literal(&self) -> String {
+        self.token.literal()
+    }
+}
+
+#[derive(Debug, Clone)]
 pub struct PrefixExpression {
     pub token: Token,
     pub operator: String,
@@ -377,6 +414,7 @@ pub enum Expressions {
     IfExpr(Box<IfExpression>),
     PrefixExpr(PrefixExpression),
     InfixExpr(InfixExpression),
+    Fn(FunctionLiteral),
     TODO,
 }
 
