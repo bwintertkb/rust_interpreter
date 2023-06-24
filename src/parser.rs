@@ -123,6 +123,16 @@ impl Parser {
         parser
     }
 
+    pub fn errors(&self) -> &[ParseError] {
+        &self.errors
+    }
+
+    pub fn print_errors(&self) {
+        for error in &self.errors {
+            println!("{}", error);
+        }
+    }
+
     pub fn next_token(&mut self) {
         // Some comment
         self.curr_token = self.peek_token.clone();
