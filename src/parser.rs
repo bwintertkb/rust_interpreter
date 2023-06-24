@@ -229,11 +229,20 @@ impl Parser {
             );
             return Err(err);
         }
+
         let curr_token = self.curr_token.clone().unwrap();
+        if !self.expect_peek(Token::Assign) {
+            let err = ParseError::NextExpectedTokenError(Token::Assign.literal(), "=".to_owned());
+            return Err(err);
+        }
+
+        self.next_token();
         let curr_token_literal = curr_token.literal();
+        let expr = self.parse_expression(Iota::Lowest as usize);
+
         let identifier = Identifier::new(curr_token, curr_token_literal);
         // TODO expressions
-        let statement = LetStatement::new(identifier, "".to_owned());
+        let statement = LetStatement::new(identifier, expr.unwrap());
 
         while !self.curr_token_is(Token::Semicolon) {
             self.next_token();
@@ -243,19 +252,12 @@ impl Parser {
     }
 
     pub fn parse_return_statements(&mut self) -> Result<Statements, ParseError> {
-        // if !self.expect_peek(Token::Ident(String::default())) {
-        //     let err = ParseError::NextExpectedTokenError(
-        //         self.curr_token.as_ref().unwrap().literal(),
-        //         "ident".to_owned(),
-        //     );
-        //     return Err(err);
-        // }
-        //
         let curr_token = self.curr_token.clone().unwrap();
         let curr_token_literal = curr_token.literal();
 
-        let stmt = ReturnStatement::new("".to_owned());
         self.next_token();
+        let return_value = self.parse_expression(Iota::Lowest as usize);
+        let stmt = ReturnStatement::new(return_value);
 
         while !self.curr_token_is(Token::Semicolon) {
             self.next_token();
@@ -265,10 +267,8 @@ impl Parser {
     }
 
     pub fn parse_expression_statement(&mut self) -> Result<Statements, ParseError> {
-        println!("curr_token: {:?}", self.curr_token);
         let mut stmt = ExpressionStatement::new(self.curr_token.clone().unwrap());
         stmt.expression = self.parse_expression(Iota::Lowest as usize);
-        println!("stmt: {:?}", stmt);
 
         if self.peek_token_is(&Token::Semicolon) {
             self.next_token();
@@ -597,30 +597,70 @@ mod tests {
 
     #[test]
     fn test_let_statements() {
-        let input = "
-            let x = 5;
-            let y = 10;
-            let foobar = 838383;
-        let 7718;
-            ";
+        struct LetStatementTest {
+            input: &'static str,
+            expected_identifier: &'static str,
+            expected_value: Expected,
+        }
 
-        let mut parser = Parser::new(input);
-        let program = parser.parse_program();
+        impl LetStatementTest {
+            fn new(
+                input: &'static str,
+                expected_identifier: &'static str,
+                expected_value: Expected,
+            ) -> Self {
+                LetStatementTest {
+                    input,
+                    expected_identifier,
+                    expected_value,
+                }
+            }
+        }
 
-        assert_eq!(program.statements.len(), 4);
-
-        let tests: Vec<ExpectedIdentifier> = vec![
-            ExpectedIdentifier::new("x".to_owned()),
-            ExpectedIdentifier::new("y".to_owned()),
-            ExpectedIdentifier::new("foobar".to_owned()),
+        let tests: [LetStatementTest; 3] = [
+            LetStatementTest::new("let x = 5;", "x", Expected::Int(5)),
+            LetStatementTest::new("let y = true;", "y", Expected::Boolean(true)),
+            LetStatementTest::new(
+                "let foobar = y;",
+                "foobar",
+                Expected::String("y".to_owned()),
+            ),
         ];
 
-        let zipped: Vec<_> = program.statements.iter().zip(tests.iter()).collect();
+        for test in tests.iter() {
+            let mut parser = Parser::new(test.input);
+            let program = parser.parse_program();
 
-        for (stmt, test) in zipped {
-            if let Statements::Let(let_) = stmt {
-                assert_eq!(let_.name.value, test.identifier);
-            }
+            assert!(parser.errors.is_empty());
+
+            assert_eq!(program.statements.len(), 1);
+
+            let stmt = &program.statements[0];
+
+            assert!(test_let_statement(stmt, test.expected_identifier));
+
+            println!("STATEMENT: {:?}", stmt);
+
+            let expr = match stmt {
+                Statements::Let(expr) => expr,
+                _ => panic!("Expected expression"),
+            };
+
+            println!("EXPR STATEMENT: {:?}", expr.value);
+
+            test_literal_expression(expr.value.clone(), test.expected_value.clone());
+
+            // match &test.expected_value {
+            //     ExpectedValue::Int(value) => {
+            //         test_integer_literal(expr, *value);
+            //     }
+            //     ExpectedValue::Bool(value) => {
+            //         test_boolean_literal(expr, *value);
+            //     }
+            //     ExpectedValue::String(value) => {
+            //         test_identifier(expr, (*value).to_owned());
+            //     }
+            // }
         }
     }
 
@@ -974,10 +1014,44 @@ mod tests {
         true
     }
 
+    #[derive(Debug, Clone)]
     enum Expected {
         Int(i64),
         String(String),
         Boolean(bool),
+    }
+
+    fn test_let_statement(stmt: &Statements, name: &str) -> bool {
+        println!("let_stmt.name.value is '{:?}'", stmt);
+        if stmt.token_literal() != "let" {
+            println!("s.token_literal not 'let'. got={}", stmt.token_literal());
+            return false;
+        }
+
+        let let_stmt = if let Statements::Let(stmt) = stmt {
+            stmt
+        } else {
+            return false;
+        };
+
+        if let_stmt.name.value != name {
+            println!(
+                "let_stmt.name.value not '{}'. got={}",
+                name, let_stmt.name.value
+            );
+            return false;
+        }
+
+        if let_stmt.name.token_literal() != name {
+            println!(
+                "let_stmt.name.token_literal not '{}'. got={}",
+                name,
+                let_stmt.name.token_literal()
+            );
+            return false;
+        }
+
+        true
     }
 
     fn test_literal_expression(expr: Expressions, expected: Expected) -> bool {

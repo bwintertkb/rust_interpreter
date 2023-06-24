@@ -335,24 +335,22 @@ impl Node for BlockStatement {
 pub struct LetStatement {
     pub token: Token,
     pub name: Identifier,
-    pub value: String,
+    pub value: Expressions,
 }
 
 impl LetStatement {
-    pub fn new(identifier: Identifier, expression: String) -> Self {
+    pub fn new(identifier: Identifier, value: Expressions) -> Self {
         LetStatement {
             token: Token::Let,
             name: identifier,
-            value: expression,
+            value,
         }
     }
 
     pub fn string(&self) -> String {
         let mut string_buffer = format!("{} {} = ", self.token_literal(), self.name.string());
 
-        if !self.value.is_empty() {
-            string_buffer.push_str(&self.value);
-        }
+        string_buffer.push_str(&self.value.string());
 
         string_buffer.push(';');
         string_buffer
@@ -368,11 +366,11 @@ impl Node for LetStatement {
 #[derive(Debug, Clone)]
 pub struct ReturnStatement {
     token: Token, // The return token.
-    return_value: String,
+    return_value: Option<Expressions>,
 }
 
 impl ReturnStatement {
-    pub fn new(return_value: String) -> Self {
+    pub fn new(return_value: Option<Expressions>) -> Self {
         ReturnStatement {
             token: Token::Return,
             return_value,
@@ -382,8 +380,8 @@ impl ReturnStatement {
     pub fn string(&self) -> String {
         let mut string_buffer = format!("{} ", self.token_literal());
 
-        if !self.return_value.is_empty() {
-            string_buffer.push_str(&self.return_value);
+        if self.return_value.is_some() {
+            string_buffer.push_str(&self.return_value.as_ref().unwrap().string());
         }
         string_buffer
     }
@@ -436,6 +434,16 @@ impl Statements {
             Statements::Let(stmt) => stmt.string(),
             Statements::Return(stmt) => stmt.string(),
             Statements::Expression(stmt) => stmt.string(),
+        }
+    }
+}
+
+impl Node for Statements {
+    fn token_literal(&self) -> String {
+        match self {
+            Statements::Let(stmt) => stmt.token.token_literal(),
+            Statements::Return(stmt) => stmt.token.token_literal(),
+            Statements::Expression(stmt) => stmt.token.token_literal(),
         }
     }
 }
