@@ -1,5 +1,6 @@
 use crate::{
     evaluator::{eval, Eval},
+    object::Object,
     parser::Parser,
 };
 
@@ -22,7 +23,7 @@ pub fn start(mut in_: impl std::io::BufRead, out: &mut String) {
 
         let evaluated = eval(&Eval::Program(program));
 
-        out.push_str(&format!("{:?}\n", evaluated));
+        out.push_str(&format!("{:?}\n", evaluated.inspect()));
     }
 }
 
@@ -33,7 +34,7 @@ mod tests {
     #[test]
     fn test_start() {
         let input = "
--5
+800 -2 * (3 + 4) != 10
 ";
         let mut write_buffer = String::default();
         let reader = std::io::BufReader::new(input.as_bytes());

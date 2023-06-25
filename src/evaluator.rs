@@ -2,8 +2,8 @@ use once_cell::sync::Lazy;
 
 use crate::{
     ast::{
-        Boolean as BooleanLiteral, ExpressionStatement, Expressions, InfixExpression,
-        IntegerLiteral, PrefixExpression, Program, Statements,
+        BlockStatement, Boolean as BooleanLiteral, ExpressionStatement, Expressions, IfExpression,
+        InfixExpression, IntegerLiteral, PrefixExpression, Program, Statements,
     },
     object::{Boolean, Integer, Null, Object, Objects, INTEGER_OBJ, NULL},
 };
@@ -17,6 +17,8 @@ pub enum Eval {
     ExpressionStatement(ExpressionStatement),
     PrefixExpression(PrefixExpression),
     InfixExpression(InfixExpression),
+    IfExpression(IfExpression),
+    BlockStatement(BlockStatement),
     IntLit(IntegerLiteral),
     BoolLit(BooleanLiteral),
 }
@@ -34,6 +36,7 @@ impl From<Expressions> for Eval {
             Expressions::Boolean(b) => Eval::BoolLit(b),
             Expressions::PrefixExpr(expr) => Eval::PrefixExpression(expr),
             Expressions::InfixExpr(expr) => Eval::InfixExpression(expr),
+            Expressions::IfExpr(expr) => Eval::IfExpression(*expr),
             _ => {
                 panic!("GOT UNSUPPORTED FROM<EXPRESSIONS>, received {:?}", value);
             }
@@ -41,9 +44,17 @@ impl From<Expressions> for Eval {
     }
 }
 
+impl From<BlockStatement> for Eval {
+    fn from(value: BlockStatement) -> Self {
+        Eval::BlockStatement(value)
+    }
+}
+
 pub fn eval(node: &Eval) -> Objects {
     match node {
         Eval::Program(ref program) => eval_statements(&program.statements),
+        Eval::BlockStatement(ref block) => eval_statements(&block.statements),
+        Eval::IfExpression(ref expr) => eval_if_expression(&expr),
         Eval::ExpressionStatement(expr) => eval(&expr.clone().into()),
         Eval::PrefixExpression(expr) => {
             let right_expr = *expr.right.clone();
@@ -130,6 +141,18 @@ fn eval_integer_infix_expression(operator: &str, left: Integer, right: Integer) 
     }
 }
 
+fn eval_if_expression(expr: &IfExpression) -> Objects {
+    let expr_cond: Eval = expr.condition.clone().into();
+    let condition = eval(&expr_cond);
+
+    if is_truthy(&condition) {
+        return eval(&expr.consequence.clone().into());
+    } else if expr.alternative.is_some() {
+        return eval(&expr.alternative.clone().unwrap().into());
+    }
+    Objects::Null(&NULL)
+}
+
 fn eval_bang_operator_expression(right: Objects) -> Objects {
     match right {
         Objects::Boolean(b) => {
@@ -151,6 +174,19 @@ fn eval_minus_prefix_operator_expression(right: Objects) -> Objects {
     };
     let v = int.value;
     Objects::Integer(Integer::new(-v))
+}
+
+fn is_truthy(obj: &Objects) -> bool {
+    match obj {
+        Objects::Null(_) => false,
+        Objects::Boolean(b) => {
+            if b.value {
+                return true;
+            }
+            false
+        }
+        _ => true,
+    }
 }
 
 #[cfg(test)]
@@ -199,6 +235,10 @@ mod tests {
         }
 
         true
+    }
+
+    fn test_null_object(obj: Objects) -> bool {
+        matches!(obj, Objects::Null(_))
     }
 
     #[test]
@@ -305,6 +345,62 @@ mod tests {
         for t in tests.into_iter() {
             let evaluated = test_eval(t.input);
             assert!(test_boolean_object(evaluated, t.expected));
+        }
+    }
+
+    #[test]
+    fn test_ifelse_expressions() {
+        enum Expected {
+            Integer(i64),
+            Null,
+        }
+
+        struct IfElseTest {
+            input: &'static str,
+            expected: Expected,
+        }
+
+        let tests: [IfElseTest; 7] = [
+            IfElseTest {
+                input: "if (true) { 10 }",
+                expected: Expected::Integer(10),
+            },
+            IfElseTest {
+                input: "if (false) { 10 }",
+                expected: Expected::Null,
+            },
+            IfElseTest {
+                input: "if (1) { 10 }",
+                expected: Expected::Integer(10),
+            },
+            IfElseTest {
+                input: "if (1 < 2) { 10 }",
+                expected: Expected::Integer(10),
+            },
+            IfElseTest {
+                input: "if (1 > 2) { 10 }",
+                expected: Expected::Null,
+            },
+            IfElseTest {
+                input: "if (1 > 2) { 10 } else { 20 }",
+                expected: Expected::Integer(20),
+            },
+            IfElseTest {
+                input: "if (1 < 2) { 10 } else { 20 }",
+                expected: Expected::Integer(10),
+            },
+        ];
+
+        for t in tests.into_iter() {
+            let eval = test_eval(t.input);
+            match t.expected {
+                Expected::Integer(int) => {
+                    assert!(test_integer_object(eval, int));
+                }
+                Expected::Null => {
+                    assert!(test_null_object(eval));
+                }
+            }
         }
     }
 }
