@@ -37,7 +37,7 @@ pub trait Expression {
 //     }
 // }
 
-#[derive(Debug, Default)]
+#[derive(Debug, Clone, Default)]
 pub struct Program {
     pub statements: Vec<Statements>,
 }
@@ -51,6 +51,10 @@ impl Program {
         });
 
         string_buffer
+    }
+
+    pub fn take_statements(&mut self) -> Vec<Statements> {
+        std::mem::take(&mut self.statements)
     }
 }
 

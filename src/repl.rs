@@ -1,4 +1,7 @@
-use crate::parser::Parser;
+use crate::{
+    evaluator::{eval, Eval},
+    parser::Parser,
+};
 
 const PROMPT: &str = ">>";
 
@@ -17,7 +20,9 @@ pub fn start(mut in_: impl std::io::BufRead, out: &mut String) {
             continue;
         }
 
-        out.push_str(&format!("{:?}\n", program.string()));
+        let evaluated = eval(&Eval::Program(program));
+
+        out.push_str(&format!("{:?}\n", evaluated.string()));
     }
 }
 
@@ -28,12 +33,11 @@ mod tests {
     #[test]
     fn test_start() {
         let input = "
-let a = 14;
-let myvar = 3 * 4 / ( 2 * a + 3 * 2 * 11 );
+false
 ";
         let mut write_buffer = String::default();
         let reader = std::io::BufReader::new(input.as_bytes());
         start(reader, &mut write_buffer);
-        println!("write_buffer = {}", write_buffer);
+        println!("{}", write_buffer);
     }
 }
