@@ -2,10 +2,10 @@ use once_cell::sync::Lazy;
 
 use crate::{
     ast::{
-        Boolean as BooleanLiteral, ExpressionStatement, Expressions, IntegerLiteral,
-        PrefixExpression, Program, Statements,
+        Boolean as BooleanLiteral, ExpressionStatement, Expressions, InfixExpression,
+        IntegerLiteral, PrefixExpression, Program, Statements,
     },
-    object::{Boolean, Integer, Null, Objects, NULL},
+    object::{Boolean, Integer, Null, Object, Objects, INTEGER_OBJ, NULL},
 };
 
 static TRUE: Lazy<Boolean> = Lazy::new(|| Boolean::new(true));
@@ -16,6 +16,7 @@ pub enum Eval {
     Program(Program),
     ExpressionStatement(ExpressionStatement),
     PrefixExpression(PrefixExpression),
+    InfixExpression(InfixExpression),
     IntLit(IntegerLiteral),
     BoolLit(BooleanLiteral),
 }
@@ -32,6 +33,7 @@ impl From<Expressions> for Eval {
             Expressions::Int(int) => Eval::IntLit(int),
             Expressions::Boolean(b) => Eval::BoolLit(b),
             Expressions::PrefixExpr(expr) => Eval::PrefixExpression(expr),
+            Expressions::InfixExpr(expr) => Eval::InfixExpression(expr),
             _ => {
                 panic!("GOT UNSUPPORTED FROM<EXPRESSIONS>, received {:?}", value);
             }
@@ -47,6 +49,13 @@ pub fn eval(node: &Eval) -> Objects {
             let right_expr = *expr.right.clone();
             let right = eval(&right_expr.into());
             eval_prefix_expression(&expr.operator, right)
+        }
+        Eval::InfixExpression(expr) => {
+            let right_expr = *expr.right.clone();
+            let left_expr = *expr.left.clone();
+            let right = eval(&right_expr.into());
+            let left = eval(&left_expr.into());
+            eval_infix_expression(&expr.operator, left, right)
         }
         Eval::IntLit(int) => Objects::Integer(Integer::new(int.value)),
         Eval::BoolLit(b) => Objects::Boolean(native_bool_to_boolean_obj(b.value)),
@@ -80,6 +89,43 @@ fn native_bool_to_boolean_obj(input: bool) -> &'static Lazy<Boolean> {
 fn eval_prefix_expression(operator: &str, right: Objects) -> Objects {
     match operator {
         "!" => eval_bang_operator_expression(right),
+        "-" => eval_minus_prefix_operator_expression(right),
+        _ => Objects::Null(&NULL),
+    }
+}
+
+fn eval_infix_expression(operator: &str, left: Objects, right: Objects) -> Objects {
+    if left.obj_type() == INTEGER_OBJ && right.obj_type() == INTEGER_OBJ {
+        let Objects::Integer(int_left) = left else {
+            return Objects::Null(&NULL);
+        };
+        let Objects::Integer(int_right) = right else {
+            return Objects::Null(&NULL);
+        };
+        return eval_integer_infix_expression(operator, int_left, int_right);
+    }
+
+    match operator {
+        "==" => {
+            return Objects::Boolean(native_bool_to_boolean_obj(left == right));
+        }
+        "!=" => {
+            return Objects::Boolean(native_bool_to_boolean_obj(left != right));
+        }
+        _ => Objects::Null(&NULL),
+    }
+}
+
+fn eval_integer_infix_expression(operator: &str, left: Integer, right: Integer) -> Objects {
+    match operator {
+        "+" => Objects::Integer(Integer::new(left.value + right.value)),
+        "-" => Objects::Integer(Integer::new(left.value - right.value)),
+        "*" => Objects::Integer(Integer::new(left.value * right.value)),
+        "/" => Objects::Integer(Integer::new(left.value / right.value)),
+        "<" => Objects::Boolean(native_bool_to_boolean_obj(left.value < right.value)),
+        ">" => Objects::Boolean(native_bool_to_boolean_obj(left.value > right.value)),
+        "==" => Objects::Boolean(native_bool_to_boolean_obj(left.value == right.value)),
+        "!=" => Objects::Boolean(native_bool_to_boolean_obj(left.value != right.value)),
         _ => Objects::Null(&NULL),
     }
 }
@@ -95,6 +141,16 @@ fn eval_bang_operator_expression(right: Objects) -> Objects {
         Objects::Null(_) => Objects::Boolean(&TRUE),
         _ => Objects::Boolean(&FALSE),
     }
+}
+
+fn eval_minus_prefix_operator_expression(right: Objects) -> Objects {
+    let int = if let Objects::Integer(int) = right {
+        int
+    } else {
+        return Objects::Null(&NULL);
+    };
+    let v = int.value;
+    Objects::Integer(Integer::new(-v))
 }
 
 #[cfg(test)]
@@ -158,7 +214,23 @@ mod tests {
             }
         }
 
-        let tests: [TestInt; 2] = [TestInt::new("5", 5), TestInt::new("10", 10)];
+        let tests: [TestInt; 15] = [
+            TestInt::new("5", 5),
+            TestInt::new("10", 10),
+            TestInt::new("-5", -5),
+            TestInt::new("-10", -10),
+            TestInt::new("5+5+5+5-10", 10),
+            TestInt::new("2*2*2*2*2", 32),
+            TestInt::new("-50+100+-50", 0),
+            TestInt::new("5*2+10", 20),
+            TestInt::new("5+2*10", 25),
+            TestInt::new("20+2*-10", 0),
+            TestInt::new("50/2*2+10", 60),
+            TestInt::new("2*(5+10)", 30),
+            TestInt::new("3*3*3+10", 37),
+            TestInt::new("3*(3*3) + 10", 37),
+            TestInt::new("(5+10*2+15/3)*2+-10", 50),
+        ];
 
         for t in tests.into_iter() {
             let evaluated = test_eval(t.input);
@@ -180,7 +252,26 @@ mod tests {
             }
         }
 
-        let tests: [TestBool; 2] = [TestBool::new("true", true), TestBool::new("false", false)];
+        let tests: [TestBool; 18] = [
+            TestBool::new("true", true),
+            TestBool::new("false", false),
+            TestBool::new("1 < 2", true),
+            TestBool::new("1 > 2", false),
+            TestBool::new("1 < 1", false),
+            TestBool::new("1 > 1", false),
+            TestBool::new("1 == 1", true),
+            TestBool::new("1 != 1", false),
+            TestBool::new("1 == 2", false),
+            TestBool::new("1 != 2", true),
+            TestBool::new("true == true", true),
+            TestBool::new("false == false", true),
+            TestBool::new("true == false", false),
+            TestBool::new("true != false", true),
+            TestBool::new("false != true", true),
+            TestBool::new("(1 < 2) == true", true),
+            TestBool::new("(1 < 2) == false", false),
+            TestBool::new("(1 > 2) == true", false),
+        ];
 
         for t in tests.into_iter() {
             let evaluated = test_eval(t.input);

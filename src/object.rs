@@ -2,23 +2,31 @@ use std::any::Any;
 
 use once_cell::sync::Lazy;
 
-const INTEGER_OBJ: &str = "INTEGER";
-const BOOLEAN_OBJ: &str = "BOOLEAN";
-const NULL_OBJ: &str = "NULL";
+pub const INTEGER_OBJ: &str = "INTEGER";
+pub const BOOLEAN_OBJ: &str = "BOOLEAN";
+pub const NULL_OBJ: &str = "NULL";
 
 pub static NULL: Lazy<Null> = Lazy::new(|| Null {});
 
 pub type ObjectType = &'static str;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Objects {
     Integer(Integer),
     Boolean(&'static Boolean),
     Null(&'static Null),
 }
 
-impl Objects {
-    pub fn string(&self) -> String {
+impl Object for Objects {
+    fn obj_type(&self) -> ObjectType {
+        match self {
+            Objects::Integer(i) => i.obj_type(),
+            Objects::Boolean(b) => b.obj_type(),
+            Objects::Null(n) => n.obj_type(),
+        }
+    }
+
+    fn inspect(&self) -> String {
         match self {
             Objects::Integer(i) => i.inspect(),
             Objects::Boolean(b) => b.inspect(),
@@ -32,7 +40,7 @@ pub trait Object {
     fn inspect(&self) -> String;
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Integer {
     pub value: i64,
 }
@@ -53,7 +61,7 @@ impl Object for Integer {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Boolean {
     pub value: bool,
 }
@@ -74,7 +82,7 @@ impl Object for Boolean {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Null;
 
 impl Object for Null {

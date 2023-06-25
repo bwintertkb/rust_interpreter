@@ -22,7 +22,7 @@ pub fn start(mut in_: impl std::io::BufRead, out: &mut String) {
 
         let evaluated = eval(&Eval::Program(program));
 
-        out.push_str(&format!("{:?}\n", evaluated.string()));
+        out.push_str(&format!("{:?}\n", evaluated));
     }
 }
 
@@ -33,7 +33,7 @@ mod tests {
     #[test]
     fn test_start() {
         let input = "
-false
+-5
 ";
         let mut write_buffer = String::default();
         let reader = std::io::BufReader::new(input.as_bytes());
