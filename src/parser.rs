@@ -407,7 +407,6 @@ impl Parser {
     }
 
     pub fn parse_grouped_expression(&mut self) -> Expressions {
-        println!("curr_token GROUPED: {:?}", self.curr_token);
         self.next_token();
 
         let exp = self.parse_expression(Iota::Lowest as usize);

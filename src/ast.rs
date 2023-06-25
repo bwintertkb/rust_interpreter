@@ -369,8 +369,8 @@ impl Node for LetStatement {
 
 #[derive(Debug, Clone)]
 pub struct ReturnStatement {
-    token: Token, // The return token.
-    return_value: Option<Expressions>,
+    pub token: Token, // The return token.
+    pub return_value: Option<Expressions>,
 }
 
 impl ReturnStatement {

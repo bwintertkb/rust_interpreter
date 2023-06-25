@@ -3,9 +3,12 @@ use once_cell::sync::Lazy;
 use crate::{
     ast::{
         BlockStatement, Boolean as BooleanLiteral, ExpressionStatement, Expressions, IfExpression,
-        InfixExpression, IntegerLiteral, PrefixExpression, Program, Statements,
+        InfixExpression, IntegerLiteral, PrefixExpression, Program, ReturnStatement, Statements,
     },
-    object::{Boolean, Integer, Null, Object, Objects, INTEGER_OBJ, NULL},
+    object::{
+        Boolean, Integer, Null, Object, Objects, ReturnValue, INTEGER_OBJ, NULL, NULL_OBJ,
+        RETURN_VALUE_OBJ,
+    },
 };
 
 static TRUE: Lazy<Boolean> = Lazy::new(|| Boolean::new(true));
@@ -21,6 +24,7 @@ pub enum Eval {
     BlockStatement(BlockStatement),
     IntLit(IntegerLiteral),
     BoolLit(BooleanLiteral),
+    ReturnStatement(ReturnStatement),
 }
 
 impl From<ExpressionStatement> for Eval {
@@ -50,11 +54,17 @@ impl From<BlockStatement> for Eval {
     }
 }
 
+impl From<ReturnStatement> for Eval {
+    fn from(value: ReturnStatement) -> Self {
+        Eval::ReturnStatement(value)
+    }
+}
+
 pub fn eval(node: &Eval) -> Objects {
     match node {
-        Eval::Program(ref program) => eval_statements(&program.statements),
-        Eval::BlockStatement(ref block) => eval_statements(&block.statements),
-        Eval::IfExpression(ref expr) => eval_if_expression(&expr),
+        Eval::Program(ref program) => eval_program(&program.statements),
+        Eval::BlockStatement(ref block) => eval_block_statements(&block.statements),
+        Eval::IfExpression(ref expr) => eval_if_expression(expr),
         Eval::ExpressionStatement(expr) => eval(&expr.clone().into()),
         Eval::PrefixExpression(expr) => {
             let right_expr = *expr.right.clone();
@@ -70,24 +80,49 @@ pub fn eval(node: &Eval) -> Objects {
         }
         Eval::IntLit(int) => Objects::Integer(Integer::new(int.value)),
         Eval::BoolLit(b) => Objects::Boolean(native_bool_to_boolean_obj(b.value)),
+        Eval::ReturnStatement(stmt) => {
+            let val = eval(&stmt.return_value.clone().unwrap().into());
+            Objects::ReturnValue(Box::new(ReturnValue::new(val)))
+        }
     }
 }
 
-fn eval_statements(statements: &[Statements]) -> Objects {
-    // for s in statements.into_iter() {
-    //     let expr = match s {
-    //         Statements::ExpressionStatement(expr) => expr,
-    //         _ => panic!("Expected ExpressionStatement"),
-    //     };
-    //     let res = eval(expr);
-    //     return res;
-    // }
-    let s = &statements[0];
-    let expr = match s {
-        Statements::Expression(expr) => expr,
-        _ => panic!("Expected ExpressionStatement"),
-    };
-    eval(&Eval::ExpressionStatement(expr.clone()))
+fn eval_program(statements: &[Statements]) -> Objects {
+    let mut result = Objects::Null(&NULL);
+    for s in statements.iter() {
+        let expr = match s {
+            Statements::Expression(expr) => Eval::from(expr.expression.clone().unwrap()),
+            Statements::Return(rtrn) => {
+                let eval_return = Eval::from(rtrn.clone());
+                let res = eval(&eval_return);
+                return res;
+            }
+            _ => panic!("Expected ExpressionStatement. Received {:?}", s),
+        };
+        let res = eval(&expr);
+        result = res;
+    }
+    result
+}
+
+fn eval_block_statements(block: &[Statements]) -> Objects {
+    let mut result = Objects::Null(&NULL);
+
+    for s in block.iter() {
+        let expr = match s {
+            Statements::Expression(expr) => Eval::from(expr.expression.clone().unwrap()),
+            Statements::Return(expr) => Eval::from(expr.clone()),
+            _ => panic!("Expected ExpressionStatement"),
+        };
+
+        result = eval(&expr);
+
+        if !result.is_null() && result.obj_type() == RETURN_VALUE_OBJ {
+            println!("Returning {:?}", result);
+            return result;
+        }
+    }
+    result
 }
 
 fn native_bool_to_boolean_obj(input: bool) -> &'static Lazy<Boolean> {
@@ -191,10 +226,7 @@ fn is_truthy(obj: &Objects) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use crate::{
-        object::{Integer, Object},
-        parser::Parser,
-    };
+    use crate::parser::Parser;
 
     use super::*;
 
@@ -401,6 +433,55 @@ mod tests {
                     assert!(test_null_object(eval));
                 }
             }
+        }
+    }
+
+    #[test]
+    fn test_return_statements() {
+        struct ReturnTest {
+            input: &'static str,
+            expected: i64,
+        }
+
+        impl ReturnTest {
+            fn new(input: &'static str, expected: i64) -> Self {
+                ReturnTest { input, expected }
+            }
+        }
+
+        let tests = [
+            ReturnTest::new("return 10;", 10),
+            ReturnTest::new("return 10; 9;", 10),
+            ReturnTest::new("return 2 * 5; 9;", 10),
+            ReturnTest::new("9; return 2 * 5; 9;", 10),
+            ReturnTest::new(
+                r#"
+            if (10 > 1) {
+                if (10 > 1) {
+                    return 10;
+                }
+            
+                return 1;
+            }
+            "#,
+                10,
+            ),
+        ];
+
+        for t in tests.into_iter() {
+            let evaluated = test_eval(t.input);
+            let int = match evaluated {
+                Objects::ReturnValue(rtrn) => {
+                    if let Objects::Integer(int) = rtrn.value {
+                        int
+                    } else {
+                        panic!("Expected integer, got {:?}", rtrn.value);
+                    }
+                }
+                Objects::Integer(int) => int,
+                _ => panic!("Expected return value, got {:?}", evaluated),
+            };
+            assert!(test_integer_object(Objects::Integer(int), t.expected));
         }
     }
 }
