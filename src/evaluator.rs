@@ -3,7 +3,8 @@ use once_cell::sync::Lazy;
 use crate::{
     ast::{
         BlockStatement, Boolean as BooleanLiteral, ExpressionStatement, Expressions, IfExpression,
-        InfixExpression, IntegerLiteral, PrefixExpression, Program, ReturnStatement, Statements,
+        InfixExpression, IntegerLiteral, LetStatement, PrefixExpression, Program, ReturnStatement,
+        Statements,
     },
     object::{
         Boolean, ErrorMonkey, Integer, Null, Object, Objects, ReturnValue, INTEGER_OBJ, NULL,
@@ -25,6 +26,7 @@ pub enum Eval {
     IntLit(IntegerLiteral),
     BoolLit(BooleanLiteral),
     ReturnStatement(ReturnStatement),
+    LetStatement(LetStatement),
 }
 
 impl From<ExpressionStatement> for Eval {
@@ -57,6 +59,12 @@ impl From<BlockStatement> for Eval {
 impl From<ReturnStatement> for Eval {
     fn from(value: ReturnStatement) -> Self {
         Eval::ReturnStatement(value)
+    }
+}
+
+impl From<LetStatement> for Eval {
+    fn from(value: LetStatement) -> Self {
+        Eval::LetStatement(value)
     }
 }
 
@@ -96,6 +104,12 @@ pub fn eval(node: &Eval) -> Objects {
                 return val;
             }
             Objects::ReturnValue(Box::new(ReturnValue::new(val)))
+        }
+        Eval::LetStatement(let_) => {
+            let val = eval(&let_.value.into());
+            if val.is_error() {
+                return val;
+            }
         }
     }
 }
@@ -576,6 +590,7 @@ mod tests {
                 }"#,
                 "unknown operator: BOOLEAN + BOOLEAN",
             ),
+            TestError::new("foobar", "identifier not found: foobar"),
         ];
 
         for t in tests.into_iter() {
@@ -586,6 +601,32 @@ mod tests {
                 }
                 _ => panic!("Expected error, got {:?}", evaluated),
             }
+        }
+    }
+
+    #[test]
+    fn test_let_statements() {
+        struct LetTest {
+            input: &'static str,
+            expected: i64,
+        }
+
+        impl LetTest {
+            fn new(input: &'static str, expected: i64) -> Self {
+                LetTest { input, expected }
+            }
+        }
+
+        let tests = [
+            LetTest::new("let a = 5; a;", 5),
+            LetTest::new("let a = 5 * 5; a;", 25),
+            LetTest::new("let a = 5; let b = a; b;", 5),
+            LetTest::new("let a = 5; let b = a; let c = a + b + 5; c;", 15),
+        ];
+
+        for t in tests.into_iter() {
+            let evaluated = test_eval(t.input);
+            assert!(test_integer_object(evaluated, t.expected));
         }
     }
 }
