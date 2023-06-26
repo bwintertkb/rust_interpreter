@@ -227,6 +227,7 @@ fn eval_integer_infix_expression(operator: &str, left: Integer, right: Integer) 
 fn eval_if_expression(expr: &IfExpression) -> Objects {
     let expr_cond: Eval = expr.condition.clone().into();
     let condition = eval(&expr_cond);
+    //
 
     if condition.is_error() {
         return condition;
