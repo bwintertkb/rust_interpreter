@@ -35,6 +35,7 @@ mod tests {
     fn test_start() {
         let input = "
 if ((1000 / 2) + 250 * 2 == 1000) { 9999 };
+return 16;88;
 ";
         let mut write_buffer = String::default();
         let reader = std::io::BufReader::new(input.as_bytes());

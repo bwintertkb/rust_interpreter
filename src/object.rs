@@ -6,6 +6,7 @@ pub const INTEGER_OBJ: &str = "INTEGER";
 pub const BOOLEAN_OBJ: &str = "BOOLEAN";
 pub const NULL_OBJ: &str = "NULL";
 pub const RETURN_VALUE_OBJ: &str = "RETURN_VALUE";
+pub const ERROR_OBJ: &str = "ERROR";
 
 pub static NULL: Lazy<Null> = Lazy::new(|| Null {});
 
@@ -17,11 +18,20 @@ pub enum Objects {
     Boolean(&'static Boolean),
     ReturnValue(Box<ReturnValue>),
     Null(&'static Null),
+    Error(ErrorMonkey),
 }
 
 impl Objects {
     pub fn is_null(&self) -> bool {
         matches!(self, Objects::Null(_))
+    }
+
+    pub fn is_error(&self) -> bool {
+        matches!(self, Objects::Error(_))
+    }
+
+    pub fn is_return(&self) -> bool {
+        matches!(self, Objects::ReturnValue(_))
     }
 }
 
@@ -32,6 +42,7 @@ impl Object for Objects {
             Objects::Boolean(b) => b.obj_type(),
             Objects::Null(n) => n.obj_type(),
             Objects::ReturnValue(r) => r.obj_type(),
+            Objects::Error(e) => e.obj_type(),
         }
     }
 
@@ -41,6 +52,7 @@ impl Object for Objects {
             Objects::Boolean(b) => b.inspect(),
             Objects::Null(n) => n.inspect(),
             Objects::ReturnValue(r) => r.inspect(),
+            Objects::Error(e) => e.inspect(),
         }
     }
 }
@@ -123,5 +135,28 @@ impl Object for ReturnValue {
 
     fn inspect(&self) -> String {
         self.value.inspect()
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ErrorMonkey {
+    pub message: String,
+}
+
+impl ErrorMonkey {
+    pub fn new(message: &str) -> Self {
+        ErrorMonkey {
+            message: message.to_owned(),
+        }
+    }
+}
+
+impl Object for ErrorMonkey {
+    fn obj_type(&self) -> ObjectType {
+        ERROR_OBJ
+    }
+
+    fn inspect(&self) -> String {
+        format!("ERROR: {}", self.message)
     }
 }
