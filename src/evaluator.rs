@@ -1,3 +1,5 @@
+use std::rc::Rc;
+
 use once_cell::sync::Lazy;
 
 use crate::{
@@ -83,7 +85,7 @@ impl From<Identifier> for Eval {
 
 pub fn eval(node: &Eval, env: &mut Environment) -> Objects {
     match node {
-        Eval::Identifier(ref ident) => eval_identifier(&ident, env),
+        Eval::Identifier(ref ident) => eval_identifier(ident, env),
         Eval::Program(ref program) => eval_program(&program.statements, env),
         Eval::BlockStatement(ref block) => eval_block_statements(&block.statements, env),
         Eval::IfExpression(ref expr) => eval_if_expression(expr, env),
@@ -130,7 +132,7 @@ pub fn eval(node: &Eval, env: &mut Environment) -> Objects {
         Eval::Function(func) => {
             let params = func.parameters.clone();
             let body = func.body.clone();
-            Objects::Function(Function::new(params, body, env as *mut Environment))
+            Objects::Function(Function::new(params, body, Rc::new(env.clone())))
         }
         Eval::CallExpression(expr) => {
             let func = eval(&expr.function.clone().into(), env);
@@ -181,7 +183,7 @@ fn apply_function(func: Function, args: Vec<Objects>) -> Objects {
 }
 
 fn extend_function_env(func: &Function, args: Vec<Objects>) -> Environment {
-    let mut env = new_enclosed_environment(func.env);
+    let mut env = new_enclosed_environment(func.env.clone());
     for (idx, ident) in func.parameters.iter().enumerate() {
         env.set(ident.value.clone(), args[idx].clone());
     }
@@ -761,5 +763,19 @@ mod tests {
             let evaluated = test_eval(t.input);
             assert!(test_integer_object(evaluated, t.expected));
         }
+    }
+
+    #[test]
+    fn test_closure() {
+        let input = r#"
+        let newAdder = fn(x) {
+            fn(y) { x + y };
+        };
+    
+        let addTwo = newAdder(2);
+        addTwo(2);
+        "#;
+
+        assert!(test_integer_object(test_eval(input), 4));
     }
 }

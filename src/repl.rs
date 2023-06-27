@@ -37,12 +37,8 @@ mod tests {
     #[test]
     fn test_start() {
         let input = "
-let a = 4;
-let b = a > 3;
-let c = a * 10;
-c;
-b;
-a;
+let multiply = fn(x,y){x*y};
+multiply(50/2, fn(x,y){return x+y;}(1, 3))
 ";
         let mut write_buffer = String::default();
         let reader = std::io::BufReader::new(input.as_bytes());

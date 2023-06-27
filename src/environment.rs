@@ -1,11 +1,11 @@
-use std::{collections::HashMap, hash::Hash};
+use std::{collections::HashMap, hash::Hash, rc::Rc};
 
 use crate::object::Objects;
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Hash)]
 pub struct Environment {
     pub store: Map,
-    pub outer: Option<*mut Environment>,
+    pub outer: Option<Rc<Environment>>,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -29,7 +29,7 @@ impl Environment {
         let mut obj = self.store.0.get(key).cloned();
 
         if obj.is_none() && self.outer.is_some() {
-            obj = unsafe { self.outer.clone().unwrap().as_mut().unwrap().get(key) }
+            obj = self.outer.clone().unwrap().as_ref().get(key);
         }
         obj
     }
@@ -40,8 +40,8 @@ impl Environment {
     }
 }
 
-pub fn new_enclosed_environment(outer: *mut Environment) -> Environment {
+pub fn new_enclosed_environment(outer: Rc<Environment>) -> Environment {
     let mut env = Environment::default();
-    env.outer = Some(outer);
+    env.outer = Some(outer.clone());
     env
 }

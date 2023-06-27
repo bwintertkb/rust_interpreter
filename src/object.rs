@@ -1,3 +1,5 @@
+use std::rc::Rc;
+
 use once_cell::sync::Lazy;
 
 use crate::{
@@ -176,11 +178,11 @@ impl Object for ErrorMonkey {
 pub struct Function {
     pub parameters: Vec<Identifier>,
     pub body: BlockStatement,
-    pub env: *mut Environment,
+    pub env: Rc<Environment>,
 }
 
 impl Function {
-    pub fn new(parameters: Vec<Identifier>, body: BlockStatement, env: *mut Environment) -> Self {
+    pub fn new(parameters: Vec<Identifier>, body: BlockStatement, env: Rc<Environment>) -> Self {
         Function {
             parameters,
             body,
