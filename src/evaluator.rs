@@ -2,14 +2,14 @@ use once_cell::sync::Lazy;
 
 use crate::{
     ast::{
-        BlockStatement, Boolean as BooleanLiteral, ExpressionStatement, Expressions, Identifier,
-        IfExpression, InfixExpression, IntegerLiteral, LetStatement, PrefixExpression, Program,
-        ReturnStatement, Statements,
+        BlockStatement, Boolean as BooleanLiteral, CallExpression, ExpressionStatement,
+        Expressions, FunctionLiteral, Identifier, IfExpression, InfixExpression, IntegerLiteral,
+        LetStatement, PrefixExpression, Program, ReturnStatement, Statements,
     },
-    environment::Environment,
+    environment::{new_enclosed_environment, Environment},
     object::{
-        Boolean, ErrorMonkey, Integer, Null, Object, Objects, ReturnValue, INTEGER_OBJ, NULL,
-        NULL_OBJ, RETURN_VALUE_OBJ,
+        Boolean, ErrorMonkey, Function, Integer, Null, Object, Objects, ReturnValue, INTEGER_OBJ,
+        NULL, NULL_OBJ, RETURN_VALUE_OBJ,
     },
 };
 
@@ -29,6 +29,8 @@ pub enum Eval {
     ReturnStatement(ReturnStatement),
     LetStatement(LetStatement),
     Identifier(Identifier),
+    Function(FunctionLiteral),
+    CallExpression(CallExpression),
 }
 
 impl From<ExpressionStatement> for Eval {
@@ -46,6 +48,8 @@ impl From<Expressions> for Eval {
             Expressions::InfixExpr(expr) => Eval::InfixExpression(expr),
             Expressions::IfExpr(expr) => Eval::IfExpression(*expr),
             Expressions::Identifier(expr) => Eval::Identifier(expr),
+            Expressions::Fn(expr) => Eval::Function(expr),
+            Expressions::Call(expr) => Eval::CallExpression(*expr),
             _ => {
                 panic!("GOT UNSUPPORTED FROM<EXPRESSIONS>, received {:?}", value);
             }
@@ -123,11 +127,72 @@ pub fn eval(node: &Eval, env: &mut Environment) -> Objects {
             env.set(let_.name.string(), val);
             Objects::Null(&NULL)
         }
+        Eval::Function(func) => {
+            let params = func.parameters.clone();
+            let body = func.body.clone();
+            Objects::Function(Function::new(params, body, env as *mut Environment))
+        }
+        Eval::CallExpression(expr) => {
+            let func = eval(&expr.function.clone().into(), env);
+            if func.is_error() {
+                return func;
+            }
+
+            let Objects::Function(func) = func else {
+                return Objects::Error(new_error(&format!(
+                    "not a function: {:?}",
+                    func
+                )));
+            };
+
+            let args = eval_expressions(expr.arguments.clone(), env);
+            if args.len() == 1 && args[0].is_error() {
+                return args[0].clone();
+            }
+
+            apply_function(func, args)
+        }
     }
 }
 
 fn new_error(message: &str) -> ErrorMonkey {
     ErrorMonkey::new(message)
+}
+
+fn eval_expressions(expressions: Vec<Expressions>, env: &mut Environment) -> Vec<Objects> {
+    let mut res: Vec<Objects> = Vec::new();
+
+    for expr in expressions.iter() {
+        let evaluated = eval(&expr.clone().into(), env);
+        res.push(evaluated.clone());
+
+        if evaluated.is_error() {
+            return res;
+        }
+    }
+
+    res
+}
+
+fn apply_function(func: Function, args: Vec<Objects>) -> Objects {
+    let mut extended_env = extend_function_env(&func, args);
+    let evaluated = eval(&func.body.into(), &mut extended_env);
+    unwrap_return_value(evaluated)
+}
+
+fn extend_function_env(func: &Function, args: Vec<Objects>) -> Environment {
+    let mut env = new_enclosed_environment(func.env);
+    for (idx, ident) in func.parameters.iter().enumerate() {
+        env.set(ident.value.clone(), args[idx].clone());
+    }
+    env
+}
+
+fn unwrap_return_value(obj: Objects) -> Objects {
+    if let Objects::ReturnValue(rtrn) = obj {
+        return rtrn.value;
+    }
+    obj
 }
 
 fn eval_identifier(ident: &Identifier, env: &mut Environment) -> Objects {
@@ -648,6 +713,48 @@ mod tests {
             LetTest::new("let a = 5 * 5; a;", 25),
             LetTest::new("let a = 5; let b = a; b;", 5),
             LetTest::new("let a = 5; let b = a; let c = a + b + 5; c;", 15),
+        ];
+
+        for t in tests.into_iter() {
+            let evaluated = test_eval(t.input);
+            assert!(test_integer_object(evaluated, t.expected));
+        }
+    }
+
+    #[test]
+    fn test_function_object() {
+        let input = "fn(x) { x + 2; };";
+        let evaluated = test_eval(input);
+        match evaluated {
+            Objects::Function(func) => {
+                assert_eq!(func.parameters.len(), 1);
+                assert_eq!(func.parameters[0].string(), "x");
+                assert_eq!(func.body.string(), "(x + 2)");
+            }
+            _ => panic!("Expected function, got {:?}", evaluated),
+        }
+    }
+
+    #[test]
+    fn test_function_application() {
+        struct TestFunction {
+            input: &'static str,
+            expected: i64,
+        }
+
+        impl TestFunction {
+            fn new(input: &'static str, expected: i64) -> Self {
+                TestFunction { input, expected }
+            }
+        }
+
+        let tests = [
+            TestFunction::new("let identity = fn(x) { x; }; identity(5);", 5),
+            TestFunction::new("let identity = fn(x) { return x; }; identity(5);", 5),
+            TestFunction::new("let double = fn(x) { x * 2; }; double(5);", 10),
+            TestFunction::new("let add = fn(x, y) { x + y; }; add(5, 5);", 10),
+            TestFunction::new("let add = fn(x, y) { x + y; }; add(5 + 5, add(5, 5));", 20),
+            TestFunction::new("fn(x) { x; }(5)", 5),
         ];
 
         for t in tests.into_iter() {

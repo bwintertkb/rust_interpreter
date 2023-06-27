@@ -23,6 +23,7 @@ pub enum Objects {
     ReturnValue(Box<ReturnValue>),
     Null(&'static Null),
     Error(ErrorMonkey),
+    Function(Function),
 }
 
 impl Objects {
@@ -37,6 +38,10 @@ impl Objects {
     pub fn is_return(&self) -> bool {
         matches!(self, Objects::ReturnValue(_))
     }
+
+    pub fn is_function(&self) -> bool {
+        matches!(self, Objects::Function(_))
+    }
 }
 
 impl Object for Objects {
@@ -47,6 +52,7 @@ impl Object for Objects {
             Objects::Null(n) => n.obj_type(),
             Objects::ReturnValue(r) => r.obj_type(),
             Objects::Error(e) => e.obj_type(),
+            Objects::Function(f) => f.obj_type(),
         }
     }
 
@@ -57,6 +63,7 @@ impl Object for Objects {
             Objects::Null(n) => n.inspect(),
             Objects::ReturnValue(r) => r.inspect(),
             Objects::Error(e) => e.inspect(),
+            Objects::Function(f) => f.inspect(),
         }
     }
 }
@@ -165,15 +172,15 @@ impl Object for ErrorMonkey {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Function {
     pub parameters: Vec<Identifier>,
     pub body: BlockStatement,
-    pub env: Environment,
+    pub env: *mut Environment,
 }
 
 impl Function {
-    pub fn new(parameters: Vec<Identifier>, body: BlockStatement, env: Environment) -> Self {
+    pub fn new(parameters: Vec<Identifier>, body: BlockStatement, env: *mut Environment) -> Self {
         Function {
             parameters,
             body,
