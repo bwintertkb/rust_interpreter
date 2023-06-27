@@ -1,18 +1,22 @@
-use std::any::Any;
-
 use once_cell::sync::Lazy;
+
+use crate::{
+    ast::{BlockStatement, Identifier},
+    environment::Environment,
+};
 
 pub const INTEGER_OBJ: &str = "INTEGER";
 pub const BOOLEAN_OBJ: &str = "BOOLEAN";
 pub const NULL_OBJ: &str = "NULL";
 pub const RETURN_VALUE_OBJ: &str = "RETURN_VALUE";
 pub const ERROR_OBJ: &str = "ERROR";
+pub const FUNCTION_OBJ: &str = "FUNCTION";
 
 pub static NULL: Lazy<Null> = Lazy::new(|| Null {});
 
 pub type ObjectType = &'static str;
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum Objects {
     Integer(Integer),
     Boolean(&'static Boolean),
@@ -62,7 +66,7 @@ pub trait Object {
     fn inspect(&self) -> String;
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Integer {
     pub value: i64,
 }
@@ -83,7 +87,7 @@ impl Object for Integer {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Boolean {
     pub value: bool,
 }
@@ -104,7 +108,7 @@ impl Object for Boolean {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Null;
 
 impl Object for Null {
@@ -117,7 +121,7 @@ impl Object for Null {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ReturnValue {
     pub value: Objects,
 }
@@ -138,7 +142,7 @@ impl Object for ReturnValue {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ErrorMonkey {
     pub message: String,
 }
@@ -158,5 +162,36 @@ impl Object for ErrorMonkey {
 
     fn inspect(&self) -> String {
         format!("ERROR: {}", self.message)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Function {
+    pub parameters: Vec<Identifier>,
+    pub body: BlockStatement,
+    pub env: Environment,
+}
+
+impl Function {
+    pub fn new(parameters: Vec<Identifier>, body: BlockStatement, env: Environment) -> Self {
+        Function {
+            parameters,
+            body,
+            env,
+        }
+    }
+}
+
+impl Object for Function {
+    fn obj_type(&self) -> ObjectType {
+        FUNCTION_OBJ
+    }
+
+    fn inspect(&self) -> String {
+        let mut params = Vec::new();
+        for p in &self.parameters {
+            params.push(p.string());
+        }
+        format!("fn({}) {{\n{}\n}}", params.join(", "), self.body.string())
     }
 }

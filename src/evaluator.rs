@@ -2,10 +2,11 @@ use once_cell::sync::Lazy;
 
 use crate::{
     ast::{
-        BlockStatement, Boolean as BooleanLiteral, ExpressionStatement, Expressions, IfExpression,
-        InfixExpression, IntegerLiteral, LetStatement, PrefixExpression, Program, ReturnStatement,
-        Statements,
+        BlockStatement, Boolean as BooleanLiteral, ExpressionStatement, Expressions, Identifier,
+        IfExpression, InfixExpression, IntegerLiteral, LetStatement, PrefixExpression, Program,
+        ReturnStatement, Statements,
     },
+    environment::Environment,
     object::{
         Boolean, ErrorMonkey, Integer, Null, Object, Objects, ReturnValue, INTEGER_OBJ, NULL,
         NULL_OBJ, RETURN_VALUE_OBJ,
@@ -27,6 +28,7 @@ pub enum Eval {
     BoolLit(BooleanLiteral),
     ReturnStatement(ReturnStatement),
     LetStatement(LetStatement),
+    Identifier(Identifier),
 }
 
 impl From<ExpressionStatement> for Eval {
@@ -43,6 +45,7 @@ impl From<Expressions> for Eval {
             Expressions::PrefixExpr(expr) => Eval::PrefixExpression(expr),
             Expressions::InfixExpr(expr) => Eval::InfixExpression(expr),
             Expressions::IfExpr(expr) => Eval::IfExpression(*expr),
+            Expressions::Identifier(expr) => Eval::Identifier(expr),
             _ => {
                 panic!("GOT UNSUPPORTED FROM<EXPRESSIONS>, received {:?}", value);
             }
@@ -68,15 +71,22 @@ impl From<LetStatement> for Eval {
     }
 }
 
-pub fn eval(node: &Eval) -> Objects {
+impl From<Identifier> for Eval {
+    fn from(value: Identifier) -> Self {
+        Eval::Identifier(value)
+    }
+}
+
+pub fn eval(node: &Eval, env: &mut Environment) -> Objects {
     match node {
-        Eval::Program(ref program) => eval_program(&program.statements),
-        Eval::BlockStatement(ref block) => eval_block_statements(&block.statements),
-        Eval::IfExpression(ref expr) => eval_if_expression(expr),
-        Eval::ExpressionStatement(expr) => eval(&expr.clone().into()),
+        Eval::Identifier(ref ident) => eval_identifier(&ident, env),
+        Eval::Program(ref program) => eval_program(&program.statements, env),
+        Eval::BlockStatement(ref block) => eval_block_statements(&block.statements, env),
+        Eval::IfExpression(ref expr) => eval_if_expression(expr, env),
+        Eval::ExpressionStatement(expr) => eval(&expr.clone().into(), env),
         Eval::PrefixExpression(expr) => {
             let right_expr = *expr.right.clone();
-            let right = eval(&right_expr.into());
+            let right = eval(&right_expr.into(), env);
             if right.is_error() {
                 return right;
             }
@@ -86,11 +96,11 @@ pub fn eval(node: &Eval) -> Objects {
             let left_expr = *expr.left.clone();
             let right_expr = *expr.right.clone();
 
-            let left = eval(&left_expr.into());
+            let left = eval(&left_expr.into(), env);
             if left.is_error() {
                 return left;
             }
-            let right = eval(&right_expr.into());
+            let right = eval(&right_expr.into(), env);
             if right.is_error() {
                 return right;
             }
@@ -99,17 +109,19 @@ pub fn eval(node: &Eval) -> Objects {
         Eval::IntLit(int) => Objects::Integer(Integer::new(int.value)),
         Eval::BoolLit(b) => Objects::Boolean(native_bool_to_boolean_obj(b.value)),
         Eval::ReturnStatement(stmt) => {
-            let val = eval(&stmt.return_value.clone().unwrap().into());
+            let val = eval(&stmt.return_value.clone().unwrap().into(), env);
             if val.is_error() {
                 return val;
             }
             Objects::ReturnValue(Box::new(ReturnValue::new(val)))
         }
         Eval::LetStatement(let_) => {
-            let val = eval(&let_.value.into());
+            let val = eval(&let_.value.clone().into(), env);
             if val.is_error() {
                 return val;
             }
+            env.set(let_.name.string(), val);
+            Objects::Null(&NULL)
         }
     }
 }
@@ -118,19 +130,31 @@ fn new_error(message: &str) -> ErrorMonkey {
     ErrorMonkey::new(message)
 }
 
-fn eval_program(statements: &[Statements]) -> Objects {
+fn eval_identifier(ident: &Identifier, env: &mut Environment) -> Objects {
+    if let Some(val) = env.get(&ident.string()) {
+        val
+    } else {
+        Objects::Error(new_error(&format!(
+            "identifier not found: {}",
+            ident.string()
+        )))
+    }
+}
+
+fn eval_program(statements: &[Statements], env: &mut Environment) -> Objects {
     let mut result = Objects::Null(&NULL);
     for s in statements.iter() {
         let expr = match s {
             Statements::Expression(expr) => Eval::from(expr.expression.clone().unwrap()),
             Statements::Return(rtrn) => {
                 let eval_return = Eval::from(rtrn.clone());
-                let res = eval(&eval_return);
+                let res = eval(&eval_return, env);
                 return res;
             }
+            Statements::Let(expr) => Eval::from(expr.clone()),
             _ => panic!("Expected ExpressionStatement. Received {:?}", s),
         };
-        let res = eval(&expr);
+        let res = eval(&expr, env);
         if res.is_error() {
             return res;
         }
@@ -140,17 +164,18 @@ fn eval_program(statements: &[Statements]) -> Objects {
     result
 }
 
-fn eval_block_statements(block: &[Statements]) -> Objects {
+fn eval_block_statements(block: &[Statements], env: &mut Environment) -> Objects {
     let mut result = Objects::Null(&NULL);
 
     for s in block.iter() {
         let expr = match s {
             Statements::Expression(expr) => Eval::from(expr.expression.clone().unwrap()),
             Statements::Return(expr) => Eval::from(expr.clone()),
+            Statements::Let(expr) => Eval::from(expr.clone()),
             _ => panic!("Expected ExpressionStatement"),
         };
 
-        result = eval(&expr);
+        result = eval(&expr, env);
 
         if !result.is_null() && (result.is_error() || result.is_return()) {
             if let Objects::ReturnValue(ref r) = result {
@@ -238,9 +263,9 @@ fn eval_integer_infix_expression(operator: &str, left: Integer, right: Integer) 
     }
 }
 
-fn eval_if_expression(expr: &IfExpression) -> Objects {
+fn eval_if_expression(expr: &IfExpression, env: &mut Environment) -> Objects {
     let expr_cond: Eval = expr.condition.clone().into();
-    let condition = eval(&expr_cond);
+    let condition = eval(&expr_cond, env);
     //
 
     if condition.is_error() {
@@ -248,9 +273,9 @@ fn eval_if_expression(expr: &IfExpression) -> Objects {
     }
 
     if is_truthy(&condition) {
-        return eval(&expr.consequence.clone().into());
+        return eval(&expr.consequence.clone().into(), env);
     } else if expr.alternative.is_some() {
-        return eval(&expr.alternative.clone().unwrap().into());
+        return eval(&expr.alternative.clone().unwrap().into(), env);
     }
     Objects::Null(&NULL)
 }
@@ -303,7 +328,8 @@ mod tests {
     fn test_eval(input: &'static str) -> Objects {
         let mut parser = Parser::new(input);
         let program = parser.parse_program();
-        eval(&Eval::Program(program))
+        let mut env = Environment::default();
+        eval(&Eval::Program(program), &mut env)
     }
 
     fn test_integer_object(obj: Objects, expected: i64) -> bool {

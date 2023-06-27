@@ -1,4 +1,5 @@
 use crate::{
+    environment::Environment,
     evaluator::{eval, Eval},
     object::Object,
     parser::Parser,
@@ -7,6 +8,7 @@ use crate::{
 const PROMPT: &str = ">>";
 
 pub fn start(mut in_: impl std::io::BufRead, out: &mut String) {
+    let mut env = Environment::default();
     loop {
         let mut line = String::new();
         in_.read_line(&mut line).unwrap();
@@ -21,9 +23,10 @@ pub fn start(mut in_: impl std::io::BufRead, out: &mut String) {
             continue;
         }
 
-        let evaluated = eval(&Eval::Program(program));
-
-        out.push_str(&format!("{:?}\n", evaluated.inspect()));
+        let evaluated = eval(&Eval::Program(program), &mut env);
+        if !evaluated.is_null() {
+            out.push_str(&format!("{:?}\n", evaluated.inspect()));
+        }
     }
 }
 
@@ -34,8 +37,12 @@ mod tests {
     #[test]
     fn test_start() {
         let input = "
-if ((1000 / 2) + 250 * 2 == 1000) { 9999 };
-return 16;88;
+let a = 4;
+let b = a > 3;
+let c = a * 10;
+c;
+b;
+a;
 ";
         let mut write_buffer = String::default();
         let reader = std::io::BufReader::new(input.as_bytes());

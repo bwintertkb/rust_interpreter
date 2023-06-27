@@ -58,7 +58,7 @@ impl Program {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Identifier {
     pub token: Token,
     pub value: String,
@@ -86,7 +86,7 @@ impl Expression for Identifier {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
 pub struct IntegerLiteral {
     pub token: Token,
     pub value: i64,
@@ -108,7 +108,7 @@ impl Node for IntegerLiteral {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
 pub struct FunctionLiteral {
     pub token: Token,
     pub parameters: Vec<Identifier>,
@@ -145,7 +145,7 @@ impl Node for FunctionLiteral {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
 pub struct CallExpression {
     pub token: Token,          // The '(' token
     pub function: Expressions, //Identifier or Function literal
@@ -181,7 +181,7 @@ impl Node for CallExpression {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
 pub struct PrefixExpression {
     pub token: Token,
     pub operator: String,
@@ -208,7 +208,7 @@ impl Node for PrefixExpression {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
 pub struct InfixExpression {
     pub token: Token,
     pub left: Box<Expressions>,
@@ -242,7 +242,7 @@ impl Node for InfixExpression {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
 pub struct Boolean {
     pub token: Token,
     pub value: bool,
@@ -264,7 +264,7 @@ impl Node for Boolean {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
 pub struct IfExpression {
     pub token: Token,
     pub condition: Expressions,
@@ -307,7 +307,7 @@ impl Node for IfExpression {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
 pub struct BlockStatement {
     pub token: Token,
     pub statements: Vec<Statements>,
@@ -335,7 +335,7 @@ impl Node for BlockStatement {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
 pub struct LetStatement {
     pub token: Token,
     pub name: Identifier,
@@ -367,7 +367,7 @@ impl Node for LetStatement {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
 pub struct ReturnStatement {
     pub token: Token, // The return token.
     pub return_value: Option<Expressions>,
@@ -397,7 +397,7 @@ impl Node for ReturnStatement {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
 pub struct ExpressionStatement {
     pub token: Token,
     pub expression: Option<Expressions>,
@@ -425,7 +425,7 @@ impl Node for ExpressionStatement {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
 pub enum Statements {
     Let(LetStatement),
     Return(ReturnStatement),
@@ -454,7 +454,7 @@ impl Node for Statements {
 
 pub struct ExpressionValue;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
 pub enum Expressions {
     Identifier(Identifier),
     Int(IntegerLiteral),

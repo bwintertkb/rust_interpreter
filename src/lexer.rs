@@ -5,13 +5,12 @@ use serde::{
 
 const TOKEN_NAME: &str = "Token";
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, Eq, PartialEq, Hash)]
 pub enum Token {
     Illegal,
     EOF,
     Ident(String),
     Int(i64),
-    Float(f64),
     Assign,
     Plus,
     Minus,
@@ -45,7 +44,6 @@ impl Token {
             Token::EOF => "eof".to_owned(),
             Token::Ident(v) => v.to_owned(),
             Token::Int(v) => v.to_string(),
-            Token::Float(v) => v.to_string(),
             Token::Assign => "=".to_owned(),
             Token::Plus => "+".to_owned(),
             Token::Minus => "-".to_owned(),
@@ -77,7 +75,6 @@ impl Token {
         match self {
             Token::Ident(_) => "ident".to_owned(),
             Token::Int(_) => "int".to_owned(),
-            Token::Float(_) => "float".to_owned(),
             _ => self.literal(),
         }
     }
@@ -124,11 +121,6 @@ impl Token {
     }
 
     fn from_number(str_: &str) -> Token {
-        if str_.contains('.') {
-            let float = str_.parse::<f64>().unwrap();
-            return Token::Float(float);
-        }
-
         let int = str_.parse::<i64>().unwrap();
         Token::Int(int)
     }
@@ -299,30 +291,29 @@ impl Serialize for Token {
             Token::EOF => serializer.serialize_unit_variant(TOKEN_NAME, 1, "EOF"),
             Token::Ident(ref s) => serializer.serialize_newtype_variant(TOKEN_NAME, 2, "Ident", s),
             Token::Int(ref v) => serializer.serialize_newtype_variant(TOKEN_NAME, 3, "Int", v),
-            Token::Float(ref v) => serializer.serialize_newtype_variant(TOKEN_NAME, 4, "Float", v),
-            Token::Assign => serializer.serialize_unit_variant(TOKEN_NAME, 5, "Assign"),
-            Token::Plus => serializer.serialize_unit_variant(TOKEN_NAME, 6, "Plus"),
-            Token::Minus => serializer.serialize_unit_variant(TOKEN_NAME, 7, "Minus"),
-            Token::Asterisk => serializer.serialize_unit_variant(TOKEN_NAME, 8, "Multiply"),
-            Token::Slash => serializer.serialize_unit_variant(TOKEN_NAME, 9, "Divide"),
-            Token::Comma => serializer.serialize_unit_variant(TOKEN_NAME, 10, "Comma"),
-            Token::Semicolon => serializer.serialize_unit_variant(TOKEN_NAME, 11, "Semicolon"),
-            Token::LParen => serializer.serialize_unit_variant(TOKEN_NAME, 12, "LParen"),
-            Token::RParen => serializer.serialize_unit_variant(TOKEN_NAME, 13, "RParen"),
-            Token::LBrace => serializer.serialize_unit_variant(TOKEN_NAME, 14, "LBrace"),
-            Token::RBrace => serializer.serialize_unit_variant(TOKEN_NAME, 15, "RBrace"),
-            Token::Function => serializer.serialize_unit_variant(TOKEN_NAME, 16, "Function"),
-            Token::Let => serializer.serialize_unit_variant(TOKEN_NAME, 17, "Let"),
-            Token::LessThan => serializer.serialize_unit_variant(TOKEN_NAME, 18, "LessThan"),
-            Token::GreaterThan => serializer.serialize_unit_variant(TOKEN_NAME, 19, "GreaterThan"),
-            Token::Return => serializer.serialize_unit_variant(TOKEN_NAME, 20, "Return"),
-            Token::True => serializer.serialize_unit_variant(TOKEN_NAME, 21, "True"),
-            Token::False => serializer.serialize_unit_variant(TOKEN_NAME, 22, "False"),
-            Token::If => serializer.serialize_unit_variant(TOKEN_NAME, 23, "If"),
-            Token::Else => serializer.serialize_unit_variant(TOKEN_NAME, 24, "Else"),
-            Token::Equal => serializer.serialize_unit_variant(TOKEN_NAME, 25, "Equal"),
-            Token::NEqual => serializer.serialize_unit_variant(TOKEN_NAME, 26, "NEqual"),
-            Token::Bang => serializer.serialize_unit_variant(TOKEN_NAME, 27, "Not"),
+            Token::Assign => serializer.serialize_unit_variant(TOKEN_NAME, 4, "Assign"),
+            Token::Plus => serializer.serialize_unit_variant(TOKEN_NAME, 5, "Plus"),
+            Token::Minus => serializer.serialize_unit_variant(TOKEN_NAME, 6, "Minus"),
+            Token::Asterisk => serializer.serialize_unit_variant(TOKEN_NAME, 7, "Multiply"),
+            Token::Slash => serializer.serialize_unit_variant(TOKEN_NAME, 8, "Divide"),
+            Token::Comma => serializer.serialize_unit_variant(TOKEN_NAME, 9, "Comma"),
+            Token::Semicolon => serializer.serialize_unit_variant(TOKEN_NAME, 10, "Semicolon"),
+            Token::LParen => serializer.serialize_unit_variant(TOKEN_NAME, 11, "LParen"),
+            Token::RParen => serializer.serialize_unit_variant(TOKEN_NAME, 12, "RParen"),
+            Token::LBrace => serializer.serialize_unit_variant(TOKEN_NAME, 13, "LBrace"),
+            Token::RBrace => serializer.serialize_unit_variant(TOKEN_NAME, 14, "RBrace"),
+            Token::Function => serializer.serialize_unit_variant(TOKEN_NAME, 15, "Function"),
+            Token::Let => serializer.serialize_unit_variant(TOKEN_NAME, 16, "Let"),
+            Token::LessThan => serializer.serialize_unit_variant(TOKEN_NAME, 17, "LessThan"),
+            Token::GreaterThan => serializer.serialize_unit_variant(TOKEN_NAME, 18, "GreaterThan"),
+            Token::Return => serializer.serialize_unit_variant(TOKEN_NAME, 19, "Return"),
+            Token::True => serializer.serialize_unit_variant(TOKEN_NAME, 20, "True"),
+            Token::False => serializer.serialize_unit_variant(TOKEN_NAME, 21, "False"),
+            Token::If => serializer.serialize_unit_variant(TOKEN_NAME, 22, "If"),
+            Token::Else => serializer.serialize_unit_variant(TOKEN_NAME, 23, "Else"),
+            Token::Equal => serializer.serialize_unit_variant(TOKEN_NAME, 24, "Equal"),
+            Token::NEqual => serializer.serialize_unit_variant(TOKEN_NAME, 25, "NEqual"),
+            Token::Bang => serializer.serialize_unit_variant(TOKEN_NAME, 26, "Not"),
         }
     }
 }
@@ -345,7 +336,6 @@ impl<'de> Visitor<'de> for TokenVisitor {
             ("EOF", _) => Ok(Token::EOF),
             ("Ident", val) => Ok(Token::Ident(val.newtype_variant()?)),
             ("Int", val) => Ok(Token::Int(val.newtype_variant()?)),
-            ("Float", val) => Ok(Token::Float(val.newtype_variant()?)),
             ("Assign", _) => Ok(Token::Assign),
             ("Plus", _) => Ok(Token::Plus),
             ("Minus", _) => Ok(Token::Minus),
@@ -453,16 +443,6 @@ mod tests {
     }
 
     #[test]
-    fn test_next_token_float() {
-        let input = "8918.2";
-
-        let expected = [Token::Float(8918.2), Token::EOF];
-
-        let mut lexer = Lexer::new(input.to_owned());
-        assert_eq!(lexer.tokens(), expected);
-    }
-
-    #[test]
     fn test_next_token_fn_keyword() {
         let input = "fn";
 
@@ -494,12 +474,12 @@ mod tests {
 
     #[test]
     fn test_next_token_variable_assignment() {
-        let input = "let my_var = 8.2;";
+        let input = "let my_var = 8;";
         let expected = [
             Token::Let,
             Token::Ident("my_var".to_owned()),
             Token::Assign,
-            Token::Float(8.2),
+            Token::Int(8),
             Token::Semicolon,
             Token::EOF,
         ];
