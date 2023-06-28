@@ -36,10 +36,12 @@ mod tests {
 
     #[test]
     fn test_start() {
-        let input = "
-let multiply = fn(x,y){x*y};
-multiply(50/2, fn(x,y){return x+y;}(1, 3))
-";
+        let input = r#"
+"Hello " + "mate!";
+"heelloo" == "heelloo";
+"heelloo" != "heelloo";
+"heelloo" * "chikenwhat";
+"#;
         let mut write_buffer = String::default();
         let reader = std::io::BufReader::new(input.as_bytes());
         start(reader, &mut write_buffer);

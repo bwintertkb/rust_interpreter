@@ -34,6 +34,7 @@ pub enum Token {
     Equal,
     NEqual,
     Bang,
+    String(String),
 }
 
 impl Token {
@@ -67,6 +68,7 @@ impl Token {
             Token::Equal => "==".to_owned(),
             Token::NEqual => "!=".to_owned(),
             Token::Bang => "!".to_owned(),
+            Token::String(string) => string.clone(),
         }
     }
 
@@ -75,6 +77,7 @@ impl Token {
         match self {
             Token::Ident(_) => "ident".to_owned(),
             Token::Int(_) => "int".to_owned(),
+            Token::String(_) => "string".to_owned(),
             _ => self.literal(),
         }
     }
@@ -98,6 +101,10 @@ impl Token {
 
     fn is_numeric(c: char) -> bool {
         c.is_numeric()
+    }
+
+    fn is_quote(c: char) -> bool {
+        c == '"'
     }
 
     fn is_char(c: char) -> bool {
@@ -197,7 +204,7 @@ impl Lexer {
     }
 
     fn next_char(&mut self) -> u8 {
-        let char = if self.read_position >= self.input.len() {
+        if self.read_position >= self.input.len() {
             0 // value of 0 means end of file
         } else {
             let mut char = 0;
@@ -209,8 +216,7 @@ impl Lexer {
                 break;
             }
             char
-        };
-        char
+        }
     }
 
     fn tokens(&mut self) -> Vec<Token> {
@@ -237,6 +243,22 @@ impl Lexer {
             }
             let str_ = String::from_utf8(char_buffer).unwrap();
             let token = Token::from(&str_[..]);
+            self.read_char();
+            return token;
+        }
+
+        if Token::is_quote(self.ch as char) {
+            self.read_char();
+            char_buffer.push(self.ch);
+            while !Token::is_quote(self.next_char() as char)
+                && !Token::is_end(self.next_char() as char)
+            {
+                self.read_char();
+                char_buffer.push(self.ch);
+            }
+            let str_ = String::from_utf8(char_buffer).unwrap();
+            let token = Token::String(str_);
+            self.read_char();
             self.read_char();
             return token;
         }
@@ -314,6 +336,9 @@ impl Serialize for Token {
             Token::Equal => serializer.serialize_unit_variant(TOKEN_NAME, 24, "Equal"),
             Token::NEqual => serializer.serialize_unit_variant(TOKEN_NAME, 25, "NEqual"),
             Token::Bang => serializer.serialize_unit_variant(TOKEN_NAME, 26, "Not"),
+            Token::String(ref s) => {
+                serializer.serialize_newtype_variant(TOKEN_NAME, 27, "String", s)
+            }
         }
     }
 }
@@ -359,6 +384,7 @@ impl<'de> Visitor<'de> for TokenVisitor {
             ("Equal", _) => Ok(Token::Equal),
             ("NEqual", _) => Ok(Token::NEqual),
             ("Not", _) => Ok(Token::Bang),
+            ("String", val) => Ok(Token::String(val.newtype_variant()?)),
             _ => Err(serde::de::Error::invalid_value(
                 serde::de::Unexpected::UnitVariant,
                 &"expected Token variant",
@@ -483,6 +509,20 @@ mod tests {
             Token::Semicolon,
             Token::EOF,
         ];
+        let mut lexer = Lexer::new(input.to_owned());
+        assert_eq!(lexer.tokens(), expected);
+    }
+
+    #[test]
+    fn test_next_token_string() {
+        let input = "\"foobar\" \"foo bar\"";
+
+        let expected = [
+            Token::String("foobar".to_owned()),
+            Token::String("foo bar".to_owned()),
+            Token::EOF,
+        ];
+
         let mut lexer = Lexer::new(input.to_owned());
         assert_eq!(lexer.tokens(), expected);
     }

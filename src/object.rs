@@ -13,6 +13,7 @@ pub const NULL_OBJ: &str = "NULL";
 pub const RETURN_VALUE_OBJ: &str = "RETURN_VALUE";
 pub const ERROR_OBJ: &str = "ERROR";
 pub const FUNCTION_OBJ: &str = "FUNCTION";
+pub const STRING_OBJ: &str = "STRING";
 
 pub static NULL: Lazy<Null> = Lazy::new(|| Null {});
 
@@ -26,6 +27,7 @@ pub enum Objects {
     Null(&'static Null),
     Error(ErrorMonkey),
     Function(Function),
+    String(StringObject),
 }
 
 impl Objects {
@@ -55,6 +57,7 @@ impl Object for Objects {
             Objects::ReturnValue(r) => r.obj_type(),
             Objects::Error(e) => e.obj_type(),
             Objects::Function(f) => f.obj_type(),
+            Objects::String(s) => s.obj_type(),
         }
     }
 
@@ -66,6 +69,7 @@ impl Object for Objects {
             Objects::ReturnValue(r) => r.inspect(),
             Objects::Error(e) => e.inspect(),
             Objects::Function(f) => f.inspect(),
+            Objects::String(s) => s.inspect(),
         }
     }
 }
@@ -93,6 +97,29 @@ impl Object for Integer {
 
     fn inspect(&self) -> String {
         self.value.to_string()
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct StringObject {
+    pub value: String,
+}
+
+impl StringObject {
+    pub fn new(value: &str) -> Self {
+        StringObject {
+            value: value.to_owned(),
+        }
+    }
+}
+
+impl Object for StringObject {
+    fn obj_type(&self) -> ObjectType {
+        STRING_OBJ
+    }
+
+    fn inspect(&self) -> String {
+        self.value.clone()
     }
 }
 

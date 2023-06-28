@@ -6,12 +6,12 @@ use crate::{
     ast::{
         BlockStatement, Boolean as BooleanLiteral, CallExpression, ExpressionStatement,
         Expressions, FunctionLiteral, Identifier, IfExpression, InfixExpression, IntegerLiteral,
-        LetStatement, PrefixExpression, Program, ReturnStatement, Statements,
+        LetStatement, PrefixExpression, Program, ReturnStatement, Statements, StringLiteral,
     },
     environment::{new_enclosed_environment, Environment},
     object::{
-        Boolean, ErrorMonkey, Function, Integer, Null, Object, Objects, ReturnValue, INTEGER_OBJ,
-        NULL, NULL_OBJ, RETURN_VALUE_OBJ,
+        Boolean, ErrorMonkey, Function, Integer, Null, Object, Objects, ReturnValue, StringObject,
+        INTEGER_OBJ, NULL, NULL_OBJ, RETURN_VALUE_OBJ, STRING_OBJ,
     },
 };
 
@@ -33,6 +33,7 @@ pub enum Eval {
     Identifier(Identifier),
     Function(FunctionLiteral),
     CallExpression(CallExpression),
+    String(StringLiteral),
 }
 
 impl From<ExpressionStatement> for Eval {
@@ -52,6 +53,7 @@ impl From<Expressions> for Eval {
             Expressions::Identifier(expr) => Eval::Identifier(expr),
             Expressions::Fn(expr) => Eval::Function(expr),
             Expressions::Call(expr) => Eval::CallExpression(*expr),
+            Expressions::String(expr) => Eval::String(expr),
             _ => {
                 panic!("GOT UNSUPPORTED FROM<EXPRESSIONS>, received {:?}", value);
             }
@@ -154,6 +156,7 @@ pub fn eval(node: &Eval, env: &mut Environment) -> Objects {
 
             apply_function(func, args)
         }
+        Eval::String(str) => Objects::String(StringObject::new(&str.value)),
     }
 }
 
@@ -295,6 +298,16 @@ fn eval_infix_expression(operator: &str, left: Objects, right: Objects) -> Objec
         )));
     }
 
+    if left.obj_type() == STRING_OBJ && right.obj_type() == STRING_OBJ {
+        let Objects::String(str_left) = left else {
+            return Objects::Null(&NULL);
+        };
+        let Objects::String(str_right) = right else {
+            return Objects::Null(&NULL);
+        };
+        return eval_string_infix_expression(operator, str_left.value, str_right.value);
+    }
+
     match operator {
         "==" => {
             return Objects::Boolean(native_bool_to_boolean_obj(left == right));
@@ -307,6 +320,31 @@ fn eval_infix_expression(operator: &str, left: Objects, right: Objects) -> Objec
             left.obj_type(),
             operator,
             right.obj_type()
+        ))),
+    }
+}
+
+fn eval_string_infix_expression(operator: &str, mut left: String, right: String) -> Objects {
+    match operator {
+        "+" => {
+            left.push_str(&right);
+            Objects::String(StringObject::new(&left))
+        }
+        "==" => Objects::Boolean(native_bool_to_boolean_obj(left == right)),
+        "!=" => Objects::Boolean(native_bool_to_boolean_obj(left != right)),
+        "*" => {
+            let mut new_str = String::with_capacity(left.len().max(right.len()));
+            let left_lower = left.to_ascii_lowercase();
+            let right_lower = right.to_ascii_lowercase();
+            for (c_l, c_r) in left_lower.chars().zip(right_lower.chars()) {
+                let v = (c_l as u32) % (c_r as u32);
+                new_str.push(char::from_u32(v).unwrap());
+            }
+            Objects::String(StringObject::new(&new_str))
+        }
+        _ => Objects::Error(new_error(&format!(
+            "unknown operator: STRING {} STRING",
+            operator
         ))),
     }
 }
@@ -684,6 +722,7 @@ mod tests {
                 "unknown operator: BOOLEAN + BOOLEAN",
             ),
             TestError::new("foobar", "identifier not found: foobar"),
+            TestError::new(r#""Hello" - "World""#, "unknown operator: STRING - STRING"),
         ];
 
         for t in tests.into_iter() {
@@ -777,5 +816,29 @@ mod tests {
         "#;
 
         assert!(test_integer_object(test_eval(input), 4));
+    }
+
+    #[test]
+    fn test_string_literal() {
+        let input = r#""Hello World!""#;
+        let evaluated = test_eval(input);
+        match evaluated {
+            Objects::String(string) => {
+                assert_eq!(string.value, "Hello World!");
+            }
+            _ => panic!("Expected string, got {:?}", evaluated),
+        }
+    }
+
+    #[test]
+    fn test_string_concatenation() {
+        let input = r#""Hello" + " " + "World!""#;
+        let evaluated = test_eval(input);
+        match evaluated {
+            Objects::String(string) => {
+                assert_eq!(string.value, "Hello World!");
+            }
+            _ => panic!("Expected string, got {:?}", evaluated),
+        }
     }
 }

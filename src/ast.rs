@@ -109,6 +109,31 @@ impl Node for IntegerLiteral {
 }
 
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
+pub struct StringLiteral {
+    pub token: Token,
+    pub value: String,
+}
+
+impl StringLiteral {
+    pub fn new(value: String) -> Self {
+        StringLiteral {
+            token: Token::String(value.clone()),
+            value,
+        }
+    }
+
+    pub fn string(&self) -> String {
+        self.token.literal()
+    }
+}
+
+impl Node for StringLiteral {
+    fn token_literal(&self) -> String {
+        self.token.literal()
+    }
+}
+
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
 pub struct FunctionLiteral {
     pub token: Token,
     pub parameters: Vec<Identifier>,
@@ -464,6 +489,7 @@ pub enum Expressions {
     InfixExpr(InfixExpression),
     Fn(FunctionLiteral),
     Call(Box<CallExpression>),
+    String(StringLiteral),
     TODO,
 }
 
@@ -478,6 +504,7 @@ impl Expressions {
             Expressions::IfExpr(if_expr) => if_expr.string(),
             Expressions::Fn(fn_expr) => fn_expr.string(),
             Expressions::Call(call_expr) => call_expr.string(),
+            Expressions::String(str) => str.token_literal(),
             _ => panic!("Not implemented"),
         }
     }

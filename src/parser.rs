@@ -10,7 +10,7 @@ use crate::{
     ast::{
         BlockStatement, Boolean, CallExpression, ExpressionStatement, Expressions, FunctionLiteral,
         Identifier, IfExpression, InfixExpression, IntegerLiteral, LetStatement, PrefixExpression,
-        Program, ReturnStatement, StatementStruct, Statements,
+        Program, ReturnStatement, StatementStruct, Statements, StringLiteral,
     },
     lexer::{Lexer, Token},
 };
@@ -107,6 +107,7 @@ impl Parser {
         parser.register_prefix(Token::LParen.token_literal());
         parser.register_prefix(Token::If.token_literal());
         parser.register_prefix(Token::Function.token_literal());
+        parser.register_prefix(Token::String(String::default()).token_literal());
 
         parser.register_infix(Token::Plus.token_literal());
         parser.register_infix(Token::Minus.token_literal());
@@ -295,6 +296,12 @@ impl Parser {
         let curr_token = self.curr_token.as_ref().unwrap();
         let value = curr_token.literal().parse::<i64>().unwrap();
         IntegerLiteral::new(curr_token.clone(), value)
+    }
+
+    pub fn parse_string_literal(&self) -> StringLiteral {
+        let curr_token = self.curr_token.as_ref().unwrap();
+        let value = curr_token.literal();
+        StringLiteral::new(value)
     }
 
     pub fn parse_boolean(&self) -> Boolean {
@@ -549,6 +556,7 @@ fn parse_prefix_expression(p: &mut Parser) -> Expressions {
         Token::LParen => p.parse_grouped_expression(),
         Token::If => Expressions::IfExpr(Box::new(p.parse_if_expression())),
         Token::Function => Expressions::Fn(p.parse_function_literal()),
+        Token::String(_) => Expressions::String(p.parse_string_literal()),
         _ => panic!("Not implemented"),
     }
 }
@@ -1384,6 +1392,31 @@ mod tests {
     }
 
     #[test]
+    fn test_string_literal_expression() {
+        let input: &str = "\"hello world\";";
+        let mut parser = Parser::new(input);
+        let program = parser.parse_program();
+
+        assert!(parser.errors.is_empty());
+        assert_eq!(program.statements.len(), 1);
+
+        let stmt = &program.statements[0];
+
+        let literal = if let Statements::Expression(expr) = stmt {
+            let expr = expr.expression.as_ref().unwrap().clone();
+            if let Expressions::String(literal) = expr {
+                literal
+            } else {
+                panic!("Not expected expression");
+            }
+        } else {
+            panic!("Not expected statement");
+        };
+
+        assert_eq!(literal.value, "hello world");
+    }
+
+    #[test]
     fn test_operator_precedence_parsing() {
         struct OperatorPrecendence {
             input: &'static str,
@@ -1396,36 +1429,36 @@ mod tests {
             }
         }
 
-        let tests: [OperatorPrecendence; 1] = [
-            // OperatorPrecendence::new("-a * b", "((-a) * b)"),
-            // OperatorPrecendence::new("!-a", "(!(-a))"),
-            // OperatorPrecendence::new("a + b + c", "((a + b) + c)"),
-            // OperatorPrecendence::new("a + b - c", "((a + b) - c)"),
-            // OperatorPrecendence::new("a * b * c", "((a * b) * c)"),
-            // OperatorPrecendence::new("a * b / c", "((a * b) / c)"),
-            // OperatorPrecendence::new("a + b / c", "(a + (b / c))"),
-            // OperatorPrecendence::new("a + b * c + d / e - f", "(((a + (b * c)) + (d / e)) - f)"),
-            // OperatorPrecendence::new("3 + 4; -5 * 5", "(3 + 4)((-5) * 5)"),
-            // OperatorPrecendence::new("5 > 4 == 3 < 4", "((5 > 4) == (3 < 4))"),
-            // OperatorPrecendence::new("5 < 4 != 3 > 4", "((5 < 4) != (3 > 4))"),
-            // OperatorPrecendence::new(
-            //     "3 + 4 * 5 == 3 * 1 + 4 * 5",
-            //     "((3 + (4 * 5)) == ((3 * 1) + (4 * 5)))",
-            // ),
-            // OperatorPrecendence::new("true", "true"),
-            // OperatorPrecendence::new("false", "false"),
-            // OperatorPrecendence::new("3 > 5 == false", "((3 > 5) == false)"),
-            // OperatorPrecendence::new("3 < 5 == true", "((3 < 5) == true)"),
-            // OperatorPrecendence::new("1 + (2 + 3) + 4", "((1 + (2 + 3)) + 4)"),
-            // OperatorPrecendence::new("(5 + 5) * 2", "((5 + 5) * 2)"),
-            // OperatorPrecendence::new("2 / (5 + 5)", "(2 / (5 + 5))"),
-            // OperatorPrecendence::new("-(5 + 5)", "(-(5 + 5))"),
-            // OperatorPrecendence::new("!(true == true)", "(!(true == true))"),
-            // OperatorPrecendence::new("a + add(b * c) + d", "((a + add((b * c))) + d)"),
-            // OperatorPrecendence::new(
-            //     "add(a, b, 1, 2 * 3, 4 + 5, add(6, 7 * 8))",
-            //     "add(a, b, 1, (2 * 3), (4 + 5), add(6, (7 * 8)))",
-            // ),
+        let tests: [OperatorPrecendence; 24] = [
+            OperatorPrecendence::new("-a * b", "((-a) * b)"),
+            OperatorPrecendence::new("!-a", "(!(-a))"),
+            OperatorPrecendence::new("a + b + c", "((a + b) + c)"),
+            OperatorPrecendence::new("a + b - c", "((a + b) - c)"),
+            OperatorPrecendence::new("a * b * c", "((a * b) * c)"),
+            OperatorPrecendence::new("a * b / c", "((a * b) / c)"),
+            OperatorPrecendence::new("a + b / c", "(a + (b / c))"),
+            OperatorPrecendence::new("a + b * c + d / e - f", "(((a + (b * c)) + (d / e)) - f)"),
+            OperatorPrecendence::new("3 + 4; -5 * 5", "(3 + 4)((-5) * 5)"),
+            OperatorPrecendence::new("5 > 4 == 3 < 4", "((5 > 4) == (3 < 4))"),
+            OperatorPrecendence::new("5 < 4 != 3 > 4", "((5 < 4) != (3 > 4))"),
+            OperatorPrecendence::new(
+                "3 + 4 * 5 == 3 * 1 + 4 * 5",
+                "((3 + (4 * 5)) == ((3 * 1) + (4 * 5)))",
+            ),
+            OperatorPrecendence::new("true", "true"),
+            OperatorPrecendence::new("false", "false"),
+            OperatorPrecendence::new("3 > 5 == false", "((3 > 5) == false)"),
+            OperatorPrecendence::new("3 < 5 == true", "((3 < 5) == true)"),
+            OperatorPrecendence::new("1 + (2 + 3) + 4", "((1 + (2 + 3)) + 4)"),
+            OperatorPrecendence::new("(5 + 5) * 2", "((5 + 5) * 2)"),
+            OperatorPrecendence::new("2 / (5 + 5)", "(2 / (5 + 5))"),
+            OperatorPrecendence::new("-(5 + 5)", "(-(5 + 5))"),
+            OperatorPrecendence::new("!(true == true)", "(!(true == true))"),
+            OperatorPrecendence::new("a + add(b * c) + d", "((a + add((b * c))) + d)"),
+            OperatorPrecendence::new(
+                "add(a, b, 1, 2 * 3, 4 + 5, add(6, 7 * 8))",
+                "add(a, b, 1, (2 * 3), (4 + 5), add(6, (7 * 8)))",
+            ),
             OperatorPrecendence::new(
                 "add(a + b + c * d / f + g)",
                 "add((((a + b) + ((c * d) / f)) + g))",
@@ -1435,7 +1468,6 @@ mod tests {
         for t in tests.into_iter() {
             let mut parser = Parser::new(t.input);
             let program = parser.parse_program();
-            println!("Errors: {:?}", parser.errors);
             assert!(parser.errors.is_empty());
 
             let actual = program.string();
