@@ -1,4 +1,4 @@
-use std::rc::Rc;
+use std::{collections::HashMap, rc::Rc};
 
 use once_cell::sync::Lazy;
 
@@ -14,10 +14,34 @@ pub const RETURN_VALUE_OBJ: &str = "RETURN_VALUE";
 pub const ERROR_OBJ: &str = "ERROR";
 pub const FUNCTION_OBJ: &str = "FUNCTION";
 pub const STRING_OBJ: &str = "STRING";
+pub const BUILTIN_OBJ: &str = "BUILTIN";
 
 pub static NULL: Lazy<Null> = Lazy::new(|| Null {});
 
 pub type ObjectType = &'static str;
+
+pub static BUILTINS: Lazy<HashMap<String, BuiltinFunction>> = Lazy::new(|| {
+    let mut builtins = HashMap::new();
+    builtins.insert("len".to_owned(), BuiltinFunction::new(builtin_len));
+
+    builtins
+});
+
+fn builtin_len(args: Vec<Objects>) -> Objects {
+    if args.len() != 1 {
+        return Objects::Error(ErrorMonkey::new(&format!(
+            "wrong number of arguments. got={}, want=1",
+            args.len()
+        )));
+    }
+    match args[0] {
+        Objects::String(ref s) => Objects::Integer(Integer::new(s.value.len() as i64)),
+        _ => Objects::Error(ErrorMonkey::new(&format!(
+            "argument to `len` not supported, got {}",
+            args[0].obj_type()
+        ))),
+    }
+}
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum Objects {
@@ -28,6 +52,7 @@ pub enum Objects {
     Error(ErrorMonkey),
     Function(Function),
     String(StringObject),
+    Builtin(BuiltinFunction),
 }
 
 impl Objects {
@@ -58,6 +83,7 @@ impl Object for Objects {
             Objects::Error(e) => e.obj_type(),
             Objects::Function(f) => f.obj_type(),
             Objects::String(s) => s.obj_type(),
+            Objects::Builtin(b) => b.obj_type(),
         }
     }
 
@@ -70,6 +96,7 @@ impl Object for Objects {
             Objects::Error(e) => e.inspect(),
             Objects::Function(f) => f.inspect(),
             Objects::String(s) => s.inspect(),
+            Objects::Builtin(b) => b.inspect(),
         }
     }
 }
@@ -229,5 +256,26 @@ impl Object for Function {
             params.push(p.string());
         }
         format!("fn({}) {{\n{}\n}}", params.join(", "), self.body.string())
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct BuiltinFunction {
+    pub func: fn(Vec<Objects>) -> Objects,
+}
+
+impl BuiltinFunction {
+    pub fn new(func: fn(Vec<Objects>) -> Objects) -> Self {
+        BuiltinFunction { func }
+    }
+}
+
+impl Object for BuiltinFunction {
+    fn obj_type(&self) -> ObjectType {
+        BUILTIN_OBJ
+    }
+
+    fn inspect(&self) -> String {
+        "builtin function".to_string()
     }
 }

@@ -41,6 +41,7 @@ mod tests {
 "heelloo" == "heelloo";
 "heelloo" != "heelloo";
 "heelloo" * "chikenwhat";
+len("testthelength");
 "#;
         let mut write_buffer = String::default();
         let reader = std::io::BufReader::new(input.as_bytes());

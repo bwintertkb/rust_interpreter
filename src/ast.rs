@@ -361,6 +361,39 @@ impl Node for BlockStatement {
 }
 
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
+pub struct ArrayLiteral {
+    pub token: Token,
+    pub elements: Vec<Expressions>,
+}
+
+impl ArrayLiteral {
+    pub fn new(elements: Vec<Expressions>) -> Self {
+        ArrayLiteral {
+            token: Token::LBracket,
+            elements,
+        }
+    }
+
+    pub fn string(&self) -> String {
+        let mut string_buffer = String::new();
+
+        let elements: Vec<String> = self.elements.iter().map(|s| s.string()).collect();
+
+        string_buffer.push('[');
+        string_buffer.push_str(&elements.join(", "));
+        string_buffer.push(']');
+
+        string_buffer
+    }
+}
+
+impl Node for ArrayLiteral {
+    fn token_literal(&self) -> String {
+        self.token.literal()
+    }
+}
+
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
 pub struct LetStatement {
     pub token: Token,
     pub name: Identifier,
@@ -490,6 +523,7 @@ pub enum Expressions {
     Fn(FunctionLiteral),
     Call(Box<CallExpression>),
     String(StringLiteral),
+    Array(ArrayLiteral),
     TODO,
 }
 

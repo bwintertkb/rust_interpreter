@@ -11,7 +11,7 @@ use crate::{
     environment::{new_enclosed_environment, Environment},
     object::{
         Boolean, ErrorMonkey, Function, Integer, Null, Object, Objects, ReturnValue, StringObject,
-        INTEGER_OBJ, NULL, NULL_OBJ, RETURN_VALUE_OBJ, STRING_OBJ,
+        BUILTINS, INTEGER_OBJ, NULL, NULL_OBJ, RETURN_VALUE_OBJ, STRING_OBJ,
     },
 };
 
@@ -142,13 +142,6 @@ pub fn eval(node: &Eval, env: &mut Environment) -> Objects {
                 return func;
             }
 
-            let Objects::Function(func) = func else {
-                return Objects::Error(new_error(&format!(
-                    "not a function: {:?}",
-                    func
-                )));
-            };
-
             let args = eval_expressions(expr.arguments.clone(), env);
             if args.len() == 1 && args[0].is_error() {
                 return args[0].clone();
@@ -179,10 +172,16 @@ fn eval_expressions(expressions: Vec<Expressions>, env: &mut Environment) -> Vec
     res
 }
 
-fn apply_function(func: Function, args: Vec<Objects>) -> Objects {
-    let mut extended_env = extend_function_env(&func, args);
-    let evaluated = eval(&func.body.into(), &mut extended_env);
-    unwrap_return_value(evaluated)
+fn apply_function(func: Objects, args: Vec<Objects>) -> Objects {
+    match func {
+        Objects::Function(func) => {
+            let mut extended_env = extend_function_env(&func, args);
+            let evaluated = eval(&func.body.into(), &mut extended_env);
+            unwrap_return_value(evaluated)
+        }
+        Objects::Builtin(b) => (b.func)(args),
+        _ => Objects::Error(new_error(&format!("not a function: {:?}", func.obj_type()))),
+    }
 }
 
 fn extend_function_env(func: &Function, args: Vec<Objects>) -> Environment {
@@ -202,13 +201,17 @@ fn unwrap_return_value(obj: Objects) -> Objects {
 
 fn eval_identifier(ident: &Identifier, env: &mut Environment) -> Objects {
     if let Some(val) = env.get(&ident.string()) {
-        val
-    } else {
-        Objects::Error(new_error(&format!(
-            "identifier not found: {}",
-            ident.string()
-        )))
+        return val;
     }
+
+    if let Some(f) = BUILTINS.get(&ident.value) {
+        return Objects::Builtin(f.clone());
+    }
+
+    Objects::Error(new_error(&format!(
+        "identifier not found: {}",
+        ident.string()
+    )))
 }
 
 fn eval_program(statements: &[Statements], env: &mut Environment) -> Objects {
@@ -432,6 +435,7 @@ mod tests {
 
     fn test_eval(input: &'static str) -> Objects {
         let mut parser = Parser::new(input);
+        println!("parser: {:?}", parser);
         let program = parser.parse_program();
         let mut env = Environment::default();
         eval(&Eval::Program(program), &mut env)
@@ -839,6 +843,54 @@ mod tests {
                 assert_eq!(string.value, "Hello World!");
             }
             _ => panic!("Expected string, got {:?}", evaluated),
+        }
+    }
+
+    #[test]
+    fn test_builtin_functions() {
+        enum Expected {
+            Int(i64),
+            String(&'static str),
+        }
+
+        struct TestBuiltin {
+            input: &'static str,
+            expected: Expected,
+        }
+
+        impl TestBuiltin {
+            fn new(input: &'static str, expected: Expected) -> Self {
+                TestBuiltin { input, expected }
+            }
+        }
+
+        let tests = [
+            TestBuiltin::new(r#"len("")"#, Expected::Int(0)),
+            TestBuiltin::new(r#"len("four")"#, Expected::Int(4)),
+            TestBuiltin::new(r#"len("hello world")"#, Expected::Int(11)),
+            TestBuiltin::new(
+                r#"len(1)"#,
+                Expected::String("argument to `len` not supported, got INTEGER"),
+            ),
+            TestBuiltin::new(
+                r#"len("one", "two")"#,
+                Expected::String("wrong number of arguments. got=2, want=1"),
+            ),
+        ];
+
+        for t in tests.into_iter() {
+            let evaluated = test_eval(t.input);
+            match t.expected {
+                Expected::Int(expected) => {
+                    assert!(test_integer_object(evaluated, expected));
+                }
+                Expected::String(expected) => match evaluated {
+                    Objects::Error(err) => {
+                        assert_eq!(err.message, expected);
+                    }
+                    _ => panic!("Expected error, got {:?}", evaluated),
+                },
+            }
         }
     }
 }

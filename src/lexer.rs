@@ -35,6 +35,8 @@ pub enum Token {
     NEqual,
     Bang,
     String(String),
+    LBracket,
+    RBracket,
 }
 
 impl Token {
@@ -69,6 +71,8 @@ impl Token {
             Token::NEqual => "!=".to_owned(),
             Token::Bang => "!".to_owned(),
             Token::String(string) => string.clone(),
+            Token::LBracket => "[".to_owned(),
+            Token::RBracket => "]".to_owned(),
         }
     }
 
@@ -121,6 +125,14 @@ impl Token {
 
     fn is_end(c: char) -> bool {
         c == '\0'
+    }
+
+    fn is_left_bracket(c: char) -> bool {
+        c == '['
+    }
+
+    fn is_right_bracket(c: char) -> bool {
+        c == ']'
     }
 
     fn is_special_double_char(c_curr: char, c_next: char) -> bool {
@@ -235,6 +247,17 @@ impl Lexer {
         while Token::is_space(self.ch as char) && !Token::is_end(self.ch as char) {
             self.read_char();
         }
+
+        if Token::is_left_bracket(self.ch as char) {
+            self.read_char();
+            return Token::LBracket;
+        }
+
+        if Token::is_right_bracket(self.ch as char) {
+            self.read_char();
+            return Token::RBracket;
+        }
+
         if Token::is_special_char(self.ch as char) {
             char_buffer.push(self.ch);
             if Token::is_special_double_char(self.ch as char, self.next_char() as char) {
@@ -249,17 +272,23 @@ impl Lexer {
 
         if Token::is_quote(self.ch as char) {
             self.read_char();
-            char_buffer.push(self.ch);
-            while !Token::is_quote(self.next_char() as char)
-                && !Token::is_end(self.next_char() as char)
-            {
+            let token = if Token::is_quote(self.ch as char) {
+                // Empty string
                 self.read_char();
+                Token::String(String::default())
+            } else {
                 char_buffer.push(self.ch);
-            }
-            let str_ = String::from_utf8(char_buffer).unwrap();
-            let token = Token::String(str_);
-            self.read_char();
-            self.read_char();
+                while !Token::is_quote(self.next_char() as char)
+                    && !Token::is_end(self.next_char() as char)
+                {
+                    self.read_char();
+                    char_buffer.push(self.ch);
+                }
+                let str_ = String::from_utf8(char_buffer).unwrap();
+                self.read_char();
+                self.read_char();
+                Token::String(str_)
+            };
             return token;
         }
 
@@ -339,6 +368,8 @@ impl Serialize for Token {
             Token::String(ref s) => {
                 serializer.serialize_newtype_variant(TOKEN_NAME, 27, "String", s)
             }
+            Token::LBracket => serializer.serialize_unit_variant(TOKEN_NAME, 28, "LBracket"),
+            Token::RBracket => serializer.serialize_unit_variant(TOKEN_NAME, 29, "RBracket"),
         }
     }
 }
@@ -385,6 +416,8 @@ impl<'de> Visitor<'de> for TokenVisitor {
             ("NEqual", _) => Ok(Token::NEqual),
             ("Not", _) => Ok(Token::Bang),
             ("String", val) => Ok(Token::String(val.newtype_variant()?)),
+            ("LBracket", _) => Ok(Token::LBracket),
+            ("RBracket", _) => Ok(Token::RBracket),
             _ => Err(serde::de::Error::invalid_value(
                 serde::de::Unexpected::UnitVariant,
                 &"expected Token variant",
@@ -515,11 +548,30 @@ mod tests {
 
     #[test]
     fn test_next_token_string() {
-        let input = "\"foobar\" \"foo bar\"";
+        let input = " \"\" \"foobar\" \"foo bar\"";
 
         let expected = [
+            Token::String("".to_owned()),
             Token::String("foobar".to_owned()),
             Token::String("foo bar".to_owned()),
+            Token::EOF,
+        ];
+
+        let mut lexer = Lexer::new(input.to_owned());
+        assert_eq!(lexer.tokens(), expected);
+    }
+
+    #[test]
+    fn test_next_token_arrays() {
+        let input = "[1, 2];";
+
+        let expected = [
+            Token::LBracket,
+            Token::Int(1),
+            Token::Comma,
+            Token::Int(2),
+            Token::RBracket,
+            Token::Semicolon,
             Token::EOF,
         ];
 

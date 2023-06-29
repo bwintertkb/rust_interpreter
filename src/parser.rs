@@ -8,9 +8,9 @@ use once_cell::sync::Lazy;
 
 use crate::{
     ast::{
-        BlockStatement, Boolean, CallExpression, ExpressionStatement, Expressions, FunctionLiteral,
-        Identifier, IfExpression, InfixExpression, IntegerLiteral, LetStatement, PrefixExpression,
-        Program, ReturnStatement, StatementStruct, Statements, StringLiteral,
+        ArrayLiteral, BlockStatement, Boolean, CallExpression, ExpressionStatement, Expressions,
+        FunctionLiteral, Identifier, IfExpression, InfixExpression, IntegerLiteral, LetStatement,
+        PrefixExpression, Program, ReturnStatement, StatementStruct, Statements, StringLiteral,
     },
     lexer::{Lexer, Token},
 };
@@ -108,6 +108,7 @@ impl Parser {
         parser.register_prefix(Token::If.token_literal());
         parser.register_prefix(Token::Function.token_literal());
         parser.register_prefix(Token::String(String::default()).token_literal());
+        parser.register_prefix(Token::LBracket.token_literal());
 
         parser.register_infix(Token::Plus.token_literal());
         parser.register_infix(Token::Minus.token_literal());
@@ -287,6 +288,34 @@ impl Parser {
         Ok(Statements::Expression(stmt))
     }
 
+    pub fn parse_array_literal(&mut self) -> ArrayLiteral {
+        let elements = self.parse_expression_list(Token::RBracket);
+        ArrayLiteral::new(elements)
+    }
+
+    pub fn parse_expression_list(&mut self, end: Token) -> Vec<Expressions> {
+        let mut list: Vec<Expressions> = Vec::new();
+
+        if self.peek_token_is(&end) {
+            self.next_token();
+            return list;
+        }
+
+        self.next_token();
+        list.push(self.parse_expression(Iota::Lowest as usize).unwrap());
+        while self.peek_token_is(&Token::Comma) {
+            self.next_token();
+            self.next_token();
+            list.push(self.parse_expression(Iota::Lowest as usize).unwrap());
+        }
+
+        if !self.expect_peek(end.clone()) {
+            panic!("Expected end token: {:?}", end);
+        }
+
+        list
+    }
+
     pub fn parse_identifier(&self) -> Identifier {
         let curr_token = self.curr_token.as_ref().unwrap();
         Identifier::new(curr_token.clone(), curr_token.literal())
@@ -301,6 +330,7 @@ impl Parser {
     pub fn parse_string_literal(&self) -> StringLiteral {
         let curr_token = self.curr_token.as_ref().unwrap();
         let value = curr_token.literal();
+        println!("STRING value: {}", value);
         StringLiteral::new(value)
     }
 
@@ -358,7 +388,7 @@ impl Parser {
     }
 
     pub fn parse_call_expression(&mut self, expr: Expressions) -> Expressions {
-        let arguments = self.parse_call_arguments();
+        let arguments = self.parse_expression_list(Token::RParen);
         Expressions::Call(Box::new(CallExpression::new(expr, arguments)))
     }
 
@@ -379,6 +409,7 @@ impl Parser {
             args.push(self.parse_expression(Iota::Lowest as usize).unwrap());
         }
 
+        println!("args: {:?}", args);
         if !self.expect_peek(Token::RParen) {
             panic!("Expected RParen");
         }
@@ -557,6 +588,7 @@ fn parse_prefix_expression(p: &mut Parser) -> Expressions {
         Token::If => Expressions::IfExpr(Box::new(p.parse_if_expression())),
         Token::Function => Expressions::Fn(p.parse_function_literal()),
         Token::String(_) => Expressions::String(p.parse_string_literal()),
+        Token::LBracket => Expressions::Array(p.parse_array_literal()),
         _ => panic!("Not implemented"),
     }
 }
@@ -1414,6 +1446,51 @@ mod tests {
         };
 
         assert_eq!(literal.value, "hello world");
+    }
+
+    #[test]
+    fn test_parse_array_literals() {
+        let input: &str = "[1, 2 * 2, 3 + 3]";
+
+        let mut parser = Parser::new(input);
+        let program = parser.parse_program();
+
+        assert!(parser.errors.is_empty());
+        assert_eq!(program.statements.len(), 1);
+
+        let stmt = &program.statements[0];
+
+        let array = if let Statements::Expression(expr) = stmt {
+            let expr = expr.expression.as_ref().unwrap().clone();
+            if let Expressions::Array(array) = expr {
+                array
+            } else {
+                panic!("Not expected expression");
+            }
+        } else {
+            panic!("Not expected statement");
+        };
+
+        assert_eq!(array.elements.len(), 3);
+
+        assert!(test_literal_expression(
+            array.elements[0].clone(),
+            Expected::Int(1)
+        ));
+
+        assert!(test_infix_expression(
+            array.elements[1].clone(),
+            Expected::Int(2),
+            "*".to_owned(),
+            Expected::Int(2)
+        ));
+
+        assert!(test_infix_expression(
+            array.elements[2].clone(),
+            Expected::Int(3),
+            "+".to_owned(),
+            Expected::Int(3)
+        ));
     }
 
     #[test]
