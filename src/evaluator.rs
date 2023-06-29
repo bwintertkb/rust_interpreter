@@ -4,14 +4,16 @@ use once_cell::sync::Lazy;
 
 use crate::{
     ast::{
-        BlockStatement, Boolean as BooleanLiteral, CallExpression, ExpressionStatement,
-        Expressions, FunctionLiteral, Identifier, IfExpression, InfixExpression, IntegerLiteral,
-        LetStatement, PrefixExpression, Program, ReturnStatement, Statements, StringLiteral,
+        ArrayLiteral, BlockStatement, Boolean as BooleanLiteral, CallExpression,
+        ExpressionStatement, Expressions, FunctionLiteral, Identifier, IfExpression,
+        IndexExpression, InfixExpression, IntegerLiteral, LetStatement, PrefixExpression, Program,
+        ReturnStatement, Statements, StringLiteral,
     },
     environment::{new_enclosed_environment, Environment},
     object::{
-        Boolean, ErrorMonkey, Function, Integer, Null, Object, Objects, ReturnValue, StringObject,
-        BUILTINS, INTEGER_OBJ, NULL, NULL_OBJ, RETURN_VALUE_OBJ, STRING_OBJ,
+        Array, Boolean, ErrorMonkey, Function, Integer, Null, Object, Objects, ReturnValue,
+        StringObject, ARRAY_OBJ, BUILTINS, INTEGER_OBJ, NULL, NULL_OBJ, RETURN_VALUE_OBJ,
+        STRING_OBJ,
     },
 };
 
@@ -34,6 +36,8 @@ pub enum Eval {
     Function(FunctionLiteral),
     CallExpression(CallExpression),
     String(StringLiteral),
+    Array(ArrayLiteral),
+    IndexExpression(IndexExpression),
 }
 
 impl From<ExpressionStatement> for Eval {
@@ -54,6 +58,8 @@ impl From<Expressions> for Eval {
             Expressions::Fn(expr) => Eval::Function(expr),
             Expressions::Call(expr) => Eval::CallExpression(*expr),
             Expressions::String(expr) => Eval::String(expr),
+            Expressions::Array(expr) => Eval::Array(expr),
+            Expressions::Index(idx) => Eval::IndexExpression(*idx),
             _ => {
                 panic!("GOT UNSUPPORTED FROM<EXPRESSIONS>, received {:?}", value);
             }
@@ -150,6 +156,26 @@ pub fn eval(node: &Eval, env: &mut Environment) -> Objects {
             apply_function(func, args)
         }
         Eval::String(str) => Objects::String(StringObject::new(&str.value)),
+        Eval::Array(array) => {
+            let elements = eval_expressions(array.elements.clone(), env);
+            if elements.len() == 1 && elements[0].is_error() {
+                return elements[0].clone();
+            }
+            Objects::Array(Array::new(elements))
+        }
+        Eval::IndexExpression(idx) => {
+            let left = eval(&idx.left.clone().into(), env);
+            if left.is_error() {
+                return left;
+            }
+
+            let index = eval(&idx.index.clone().into(), env);
+            if index.is_error() {
+                return index;
+            }
+
+            eval_index_expression(left, index)
+        }
     }
 }
 
@@ -170,6 +196,35 @@ fn eval_expressions(expressions: Vec<Expressions>, env: &mut Environment) -> Vec
     }
 
     res
+}
+
+fn eval_index_expression(left: Objects, index: Objects) -> Objects {
+    if left.obj_type() == ARRAY_OBJ && index.obj_type() == INTEGER_OBJ {
+        return eval_array_index_expression(left, index);
+    }
+
+    Objects::Error(new_error(&format!(
+        "index operator not supported: {:?}",
+        left.obj_type()
+    )))
+}
+
+fn eval_array_index_expression(left: Objects, index: Objects) -> Objects {
+    let Objects::Array(arr) = left else {
+        return Objects::Error(new_error(&format!("ARRAY index operator not supported: {:?}", left.obj_type())));
+    };
+
+    let Objects::Integer(int) = index else {
+        return Objects::Error(new_error(&format!("INTEGER index operator not supported: {:?}", index.obj_type())));
+    };
+
+    let idx = int.value;
+
+    if idx < 0 || idx >= arr.elements.len() as i64 {
+        return Objects::Null(&NULL);
+    }
+
+    arr.elements[idx as usize].clone()
 }
 
 fn apply_function(func: Objects, args: Vec<Objects>) -> Objects {
@@ -890,6 +945,71 @@ mod tests {
                     }
                     _ => panic!("Expected error, got {:?}", evaluated),
                 },
+            }
+        }
+    }
+
+    #[test]
+    fn test_array_literals() {
+        let input = "[1, 2 * 2, 3 + 3]";
+        let evaluated = test_eval(input);
+        match evaluated {
+            Objects::Array(array) => {
+                assert_eq!(array.elements.len(), 3);
+                assert!(test_integer_object(array.elements[0].clone(), 1));
+                assert!(test_integer_object(array.elements[1].clone(), 4));
+                assert!(test_integer_object(array.elements[2].clone(), 6));
+            }
+            _ => panic!("Expected array, got {:?}", evaluated),
+        }
+    }
+
+    #[test]
+    fn test_array_index_expressions() {
+        enum ExpectRes {
+            Int(i64),
+            Null,
+        }
+
+        struct TestArrayIndex {
+            input: &'static str,
+            expected: ExpectRes,
+        }
+
+        impl TestArrayIndex {
+            fn new(input: &'static str, expected: ExpectRes) -> Self {
+                TestArrayIndex { input, expected }
+            }
+        }
+
+        let tests = [
+            TestArrayIndex::new("[1, 2, 3][0]", ExpectRes::Int(1)),
+            TestArrayIndex::new("[1, 2, 3][1]", ExpectRes::Int(2)),
+            TestArrayIndex::new("[1, 2, 3][2]", ExpectRes::Int(3)),
+            TestArrayIndex::new("let i = 0; [1][i];", ExpectRes::Int(1)),
+            TestArrayIndex::new("[1, 2, 3][1 + 1];", ExpectRes::Int(3)),
+            TestArrayIndex::new("let myArray = [1, 2, 3]; myArray[2];", ExpectRes::Int(3)),
+            TestArrayIndex::new(
+                "let myArray = [1, 2, 3]; myArray[0] + myArray[1] + myArray[2];",
+                ExpectRes::Int(6),
+            ),
+            TestArrayIndex::new(
+                "let myArray = [1, 2, 3]; let i = myArray[0]; myArray[i]",
+                ExpectRes::Int(2),
+            ),
+            TestArrayIndex::new("[1, 2, 3][3]", ExpectRes::Null),
+            TestArrayIndex::new("[1, 2, 3][-1]", ExpectRes::Null),
+        ];
+
+        for t in tests.into_iter() {
+            let evaluated = test_eval(t.input);
+            match t.expected {
+                ExpectRes::Int(expected) => {
+                    assert!(test_integer_object(evaluated, expected));
+                }
+                ExpectRes::Null => {
+                    assert_eq!(evaluated, Objects::Null(&NULL));
+                }
             }
         }
     }

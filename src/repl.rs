@@ -42,6 +42,8 @@ mod tests {
 "heelloo" != "heelloo";
 "heelloo" * "chikenwhat";
 len("testthelength");
+let double = fn(x) { x * 2 };
+[1, double(2), 3 * 3, 4 - 3]
 "#;
         let mut write_buffer = String::default();
         let reader = std::io::BufReader::new(input.as_bytes());

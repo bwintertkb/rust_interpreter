@@ -15,6 +15,7 @@ pub const ERROR_OBJ: &str = "ERROR";
 pub const FUNCTION_OBJ: &str = "FUNCTION";
 pub const STRING_OBJ: &str = "STRING";
 pub const BUILTIN_OBJ: &str = "BUILTIN";
+pub const ARRAY_OBJ: &str = "ARRAY";
 
 pub static NULL: Lazy<Null> = Lazy::new(|| Null {});
 
@@ -53,6 +54,7 @@ pub enum Objects {
     Function(Function),
     String(StringObject),
     Builtin(BuiltinFunction),
+    Array(Array),
 }
 
 impl Objects {
@@ -84,6 +86,7 @@ impl Object for Objects {
             Objects::Function(f) => f.obj_type(),
             Objects::String(s) => s.obj_type(),
             Objects::Builtin(b) => b.obj_type(),
+            Objects::Array(a) => a.obj_type(),
         }
     }
 
@@ -97,6 +100,7 @@ impl Object for Objects {
             Objects::Function(f) => f.inspect(),
             Objects::String(s) => s.inspect(),
             Objects::Builtin(b) => b.inspect(),
+            Objects::Array(a) => a.inspect(),
         }
     }
 }
@@ -124,6 +128,36 @@ impl Object for Integer {
 
     fn inspect(&self) -> String {
         self.value.to_string()
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct Array {
+    pub elements: Vec<Objects>,
+}
+
+impl Array {
+    pub fn new(elements: Vec<Objects>) -> Self {
+        Array { elements }
+    }
+}
+
+impl Object for Array {
+    fn obj_type(&self) -> ObjectType {
+        ARRAY_OBJ
+    }
+
+    fn inspect(&self) -> String {
+        let mut s = String::new();
+        s.push('[');
+        for (i, e) in self.elements.iter().enumerate() {
+            s.push_str(&e.inspect());
+            if i != self.elements.len() - 1 {
+                s.push_str(", ");
+            }
+        }
+        s.push(']');
+        s
     }
 }
 
