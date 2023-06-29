@@ -24,6 +24,10 @@ pub type ObjectType = &'static str;
 pub static BUILTINS: Lazy<HashMap<String, BuiltinFunction>> = Lazy::new(|| {
     let mut builtins = HashMap::new();
     builtins.insert("len".to_owned(), BuiltinFunction::new(builtin_len));
+    builtins.insert("first".to_owned(), BuiltinFunction::new(builtin_first));
+    builtins.insert("last".to_owned(), BuiltinFunction::new(builtin_last));
+    builtins.insert("rest".to_owned(), BuiltinFunction::new(builtin_rest));
+    builtins.insert("push".to_owned(), BuiltinFunction::new(builtin_push));
 
     builtins
 });
@@ -37,8 +41,96 @@ fn builtin_len(args: Vec<Objects>) -> Objects {
     }
     match args[0] {
         Objects::String(ref s) => Objects::Integer(Integer::new(s.value.len() as i64)),
+        Objects::Array(ref a) => Objects::Integer(Integer::new(a.elements.len() as i64)),
         _ => Objects::Error(ErrorMonkey::new(&format!(
             "argument to `len` not supported, got {}",
+            args[0].obj_type()
+        ))),
+    }
+}
+
+fn builtin_first(args: Vec<Objects>) -> Objects {
+    if args.len() != 1 {
+        return Objects::Error(ErrorMonkey::new(&format!(
+            "wrong number of arguments. got={}, want=1",
+            args.len()
+        )));
+    }
+    match args[0] {
+        Objects::Array(ref a) => {
+            if a.elements.is_empty() {
+                return Objects::Null(&NULL);
+            }
+            a.elements[0].clone()
+        }
+        _ => Objects::Error(ErrorMonkey::new(&format!(
+            "argument to `first` must be ARRAY, got {}",
+            args[0].obj_type()
+        ))),
+    }
+}
+
+fn builtin_last(args: Vec<Objects>) -> Objects {
+    if args.len() != 1 {
+        return Objects::Error(ErrorMonkey::new(&format!(
+            "wrong number of arguments. got={}, want=1",
+            args.len()
+        )));
+    }
+    match args[0] {
+        Objects::Array(ref a) => {
+            if a.elements.is_empty() {
+                return Objects::Null(&NULL);
+            }
+            a.elements[a.elements.len() - 1].clone()
+        }
+        _ => Objects::Error(ErrorMonkey::new(&format!(
+            "argument to `last` must be ARRAY, got {}",
+            args[0].obj_type()
+        ))),
+    }
+}
+
+fn builtin_rest(args: Vec<Objects>) -> Objects {
+    if args.len() != 1 {
+        return Objects::Error(ErrorMonkey::new(&format!(
+            "wrong number of arguments. got={}, want=1",
+            args.len()
+        )));
+    }
+    match args[0] {
+        Objects::Array(ref a) => {
+            if a.elements.is_empty() {
+                return Objects::Null(&NULL);
+            }
+            let new_arr: Vec<Objects> = a.elements[1..].to_vec();
+            Objects::Array(Array::new(new_arr))
+        }
+        _ => Objects::Error(ErrorMonkey::new(&format!(
+            "argument to `last` must be ARRAY, got {}",
+            args[0].obj_type()
+        ))),
+    }
+}
+
+fn builtin_push(args: Vec<Objects>) -> Objects {
+    if args.len() != 2 {
+        return Objects::Error(ErrorMonkey::new(&format!(
+            "wrong number of arguments. got={}, want=2",
+            args.len()
+        )));
+    }
+    match args[0] {
+        Objects::Array(ref a) => {
+            if a.elements.is_empty() {
+                return Objects::Null(&NULL);
+            }
+            let mut new_arr: Vec<Objects> = a.elements[..].to_vec();
+            new_arr.push(args[1].clone());
+            Objects::Array(Array::new(new_arr))
+        }
+        _ => Objects::Error(ErrorMonkey::new(&format!(
+            "argument to `last` must be ARRAY, got {}",
             args[0].obj_type()
         ))),
     }
