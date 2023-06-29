@@ -101,6 +101,8 @@ impl Token {
             || c == '-'
             || c == '<'
             || c == '>'
+            || c == '['
+            || c == ']'
     }
 
     fn is_numeric(c: char) -> bool {
@@ -570,6 +572,41 @@ mod tests {
             Token::Int(1),
             Token::Comma,
             Token::Int(2),
+            Token::RBracket,
+            Token::Semicolon,
+            Token::EOF,
+        ];
+
+        let mut lexer = Lexer::new(input.to_owned());
+        assert_eq!(lexer.tokens(), expected);
+    }
+
+    #[test]
+    fn test_next_token_arrays_joint() {
+        let input = "a * b[2], b[1], 2 * [1, 2][1];";
+
+        let expected = [
+            Token::Ident("a".to_owned()),
+            Token::Asterisk,
+            Token::Ident("b".to_owned()),
+            Token::LBracket,
+            Token::Int(2),
+            Token::RBracket,
+            Token::Comma,
+            Token::Ident("b".to_owned()),
+            Token::LBracket,
+            Token::Int(1),
+            Token::RBracket,
+            Token::Comma,
+            Token::Int(2),
+            Token::Asterisk,
+            Token::LBracket,
+            Token::Int(1),
+            Token::Comma,
+            Token::Int(2),
+            Token::RBracket,
+            Token::LBracket,
+            Token::Int(1),
             Token::RBracket,
             Token::Semicolon,
             Token::EOF,

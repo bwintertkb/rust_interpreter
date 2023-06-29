@@ -9,8 +9,9 @@ use once_cell::sync::Lazy;
 use crate::{
     ast::{
         ArrayLiteral, BlockStatement, Boolean, CallExpression, ExpressionStatement, Expressions,
-        FunctionLiteral, Identifier, IfExpression, InfixExpression, IntegerLiteral, LetStatement,
-        PrefixExpression, Program, ReturnStatement, StatementStruct, Statements, StringLiteral,
+        FunctionLiteral, Identifier, IfExpression, IndexExpression, InfixExpression,
+        IntegerLiteral, LetStatement, PrefixExpression, Program, ReturnStatement, StatementStruct,
+        Statements, StringLiteral,
     },
     lexer::{Lexer, Token},
 };
@@ -29,6 +30,7 @@ static PRECEDENCE_TABLE: Lazy<HashMap<String, usize>> = Lazy::new(|| {
     precedence_table.insert(Token::Slash.token_literal(), Iota::Product as usize);
     precedence_table.insert(Token::Asterisk.token_literal(), Iota::Product as usize);
     precedence_table.insert(Token::LParen.token_literal(), Iota::Call as usize);
+    precedence_table.insert(Token::LBracket.token_literal(), Iota::Index as usize);
 
     precedence_table
 });
@@ -42,6 +44,7 @@ pub enum Iota {
     Product = 4,
     Prefix = 5,
     Call = 6,
+    Index = 7,
 }
 
 #[derive(Debug)]
@@ -119,6 +122,7 @@ impl Parser {
         parser.register_infix(Token::LessThan.token_literal());
         parser.register_infix(Token::GreaterThan.token_literal());
         parser.register_infix(Token::LParen.token_literal());
+        parser.register_infix(Token::LBracket.token_literal());
 
         parser.next_token();
         parser.next_token();
@@ -330,7 +334,6 @@ impl Parser {
     pub fn parse_string_literal(&self) -> StringLiteral {
         let curr_token = self.curr_token.as_ref().unwrap();
         let value = curr_token.literal();
-        println!("STRING value: {}", value);
         StringLiteral::new(value)
     }
 
@@ -385,6 +388,18 @@ impl Parser {
         }
 
         identifiers
+    }
+
+    pub fn parse_index_expression(&mut self, left: Expressions) -> Expressions {
+        self.next_token();
+        let index = self.parse_expression(Iota::Lowest as usize).unwrap();
+        println!("Index: {:?}", index);
+
+        if !self.expect_peek(Token::RBracket) {
+            panic!("Expected RBracket, current token: {:?}", self.curr_token);
+        }
+
+        Expressions::Index(Box::new(IndexExpression::new(left, index)))
     }
 
     pub fn parse_call_expression(&mut self, expr: Expressions) -> Expressions {
@@ -548,33 +563,6 @@ impl Parser {
             .fns
             .insert(token_literal, parse_infix_expression);
     }
-
-    //     func (p *Parser) parsePrefixExpression() ast.Expression {
-    // 	expression := &ast.PrefixExpression{
-    // 		Token:    p.curToken,
-    // 		Operator: p.curToken.Literal,
-    // 	}
-    //
-    // 	p.nextToken()
-    //
-    // 	expression.Right = p.parseExpression(PREFIX)
-    //
-    // 	return expression
-    // }
-    //
-    // func (p *Parser) parseInfixExpression(left ast.Expression) ast.Expression {
-    // 	expression := &ast.InfixExpression{
-    // 		Token:    p.curToken,
-    // 		Operator: p.curToken.Literal,
-    // 		Left:     left,
-    // 	}
-    //
-    // 	precedence := p.curPrecedence()
-    // 	p.nextToken()
-    // 	expression.Right = p.parseExpression(precedence)
-    //
-    // 	return expression
-    // }
 }
 
 fn parse_prefix_expression(p: &mut Parser) -> Expressions {
@@ -596,6 +584,10 @@ fn parse_prefix_expression(p: &mut Parser) -> Expressions {
 fn parse_infix_expression(p: &mut Parser, expression: Expressions) -> Expressions {
     if p.curr_token_is(Token::LParen) {
         return p.parse_call_expression(expression);
+    }
+
+    if p.curr_token_is(Token::LBracket) {
+        return p.parse_index_expression(expression);
     }
     Expressions::InfixExpr(p.parse_infix_expression(expression))
 }
@@ -1068,6 +1060,7 @@ mod tests {
         Int(i64),
         String(String),
         Boolean(bool),
+        Array(Vec<Expected>),
     }
 
     fn test_let_statement(stmt: &Statements, name: &str) -> bool {
@@ -1108,7 +1101,37 @@ mod tests {
             Expected::Int(int) => test_integer_literal(expr, int),
             Expected::String(str) => test_identifier(expr, str),
             Expected::Boolean(bool_) => test_boolean_literal(expr, bool_),
+            Expected::Array(arr) => test_array_literal(expr, arr),
+            _ => panic!("Not implemented litral expression"),
         }
+    }
+
+    fn test_array_literal(expr: Expressions, expected: Vec<Expected>) -> bool {
+        let arr = if let Expressions::Array(arr) = expr {
+            arr
+        } else {
+            return false;
+        };
+
+        if arr.elements.len() != expected.len() {
+            println!(
+                "len(arr.elements) not {}. got={}",
+                expected.len(),
+                arr.elements.len()
+            );
+            return false;
+        }
+
+        for (i, exp) in expected.iter().enumerate() {
+            match exp {
+                Expected::Int(int) => test_integer_literal(arr.elements[i].clone(), *int),
+                Expected::String(str) => test_identifier(arr.elements[i].clone(), str.to_owned()),
+                Expected::Boolean(bool_) => test_boolean_literal(arr.elements[i].clone(), *bool_),
+                _ => panic!("Not implemented litral expression"),
+            };
+        }
+
+        true
     }
 
     fn test_boolean_literal(expr: Expressions, bool_: bool) -> bool {
@@ -1494,6 +1517,82 @@ mod tests {
     }
 
     #[test]
+    fn test_parsing_index_expression() {
+        let input: &str = "myArray[1 + 1]";
+
+        let mut parser = Parser::new(input);
+        let program = parser.parse_program();
+
+        println!("Errors: {:?}", parser.errors);
+        println!("Program: {:?}", program);
+        assert!(parser.errors.is_empty());
+        assert_eq!(program.statements.len(), 1);
+
+        let stmt = &program.statements[0];
+
+        let index_expr = if let Statements::Expression(expr) = stmt {
+            let expr = expr.expression.as_ref().unwrap().clone();
+            if let Expressions::Index(index_expr) = expr {
+                index_expr
+            } else {
+                panic!("Not expected expression");
+            }
+        } else {
+            panic!("Not expected statement");
+        };
+
+        assert!(test_identifier(
+            index_expr.left.clone(),
+            "myArray".to_owned()
+        ));
+
+        assert!(test_infix_expression(
+            index_expr.index.clone(),
+            Expected::Int(1),
+            "+".to_owned(),
+            Expected::Int(1)
+        ));
+    }
+
+    #[test]
+    fn test_parsing_index_expression_2() {
+        let input: &str = "[1, 2, 3][1 + 1]";
+
+        let mut parser = Parser::new(input);
+        let program = parser.parse_program();
+
+        println!("Errors: {:?}", parser.errors);
+        println!("Program: {:?}", program);
+        assert!(parser.errors.is_empty());
+        assert_eq!(program.statements.len(), 1);
+
+        let stmt = &program.statements[0];
+
+        let index_expr = if let Statements::Expression(expr) = stmt {
+            let expr = expr.expression.as_ref().unwrap().clone();
+            if let Expressions::Index(index_expr) = expr {
+                index_expr
+            } else {
+                panic!("Not expected expression");
+            }
+        } else {
+            panic!("Not expected statement");
+        };
+
+        assert!(test_literal_expression(
+            index_expr.left.clone(),
+            Expected::Array(vec![Expected::Int(1), Expected::Int(2), Expected::Int(3)])
+        ));
+
+        assert!(test_infix_expression(
+            index_expr.index.clone(),
+            Expected::Int(1),
+            "+".to_owned(),
+            Expected::Int(1)
+        ));
+    }
+
+    #[test]
     fn test_operator_precedence_parsing() {
         struct OperatorPrecendence {
             input: &'static str,
@@ -1506,7 +1605,7 @@ mod tests {
             }
         }
 
-        let tests: [OperatorPrecendence; 24] = [
+        let tests = [
             OperatorPrecendence::new("-a * b", "((-a) * b)"),
             OperatorPrecendence::new("!-a", "(!(-a))"),
             OperatorPrecendence::new("a + b + c", "((a + b) + c)"),
@@ -1540,11 +1639,22 @@ mod tests {
                 "add(a + b + c * d / f + g)",
                 "add((((a + b) + ((c * d) / f)) + g))",
             ),
+            OperatorPrecendence::new(
+                "a * [1, 2, 3, 4][b * c] * d",
+                "((a * ([1, 2, 3, 4][(b * c)])) * d)",
+            ),
+            OperatorPrecendence::new(
+                "add(a * b[2], b[1], 2 * [1, 2][1])",
+                "add((a * (b[2])), (b[1]), (2 * ([1, 2][1])))",
+            ),
         ];
 
         for t in tests.into_iter() {
             let mut parser = Parser::new(t.input);
+            println!("Parsing: {}", t.input);
             let program = parser.parse_program();
+            println!("Program: {:?}", program);
+            println!("Errors: {:?}", parser.errors);
             assert!(parser.errors.is_empty());
 
             let actual = program.string();

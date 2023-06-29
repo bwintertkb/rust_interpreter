@@ -394,6 +394,35 @@ impl Node for ArrayLiteral {
 }
 
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
+pub struct IndexExpression {
+    pub token: Token, // The [ token
+    pub left: Expressions,
+    pub index: Expressions,
+}
+
+impl IndexExpression {
+    pub fn new(left: Expressions, index: Expressions) -> Self {
+        IndexExpression {
+            token: Token::LBracket,
+            left,
+            index,
+        }
+    }
+
+    pub fn string(&self) -> String {
+        let a = format!("({}[{}])", self.left.string(), self.index.string());
+        println!("INDEX EXPRESSION STRING {}", a);
+        a
+    }
+}
+
+impl Node for IndexExpression {
+    fn token_literal(&self) -> String {
+        self.string()
+    }
+}
+
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
 pub struct LetStatement {
     pub token: Token,
     pub name: Identifier,
@@ -524,6 +553,7 @@ pub enum Expressions {
     Call(Box<CallExpression>),
     String(StringLiteral),
     Array(ArrayLiteral),
+    Index(Box<IndexExpression>),
     TODO,
 }
 
@@ -539,6 +569,8 @@ impl Expressions {
             Expressions::Fn(fn_expr) => fn_expr.string(),
             Expressions::Call(call_expr) => call_expr.string(),
             Expressions::String(str) => str.token_literal(),
+            Expressions::Array(expr) => expr.string(),
+            Expressions::Index(idx) => idx.string(),
             _ => panic!("Not implemented"),
         }
     }
