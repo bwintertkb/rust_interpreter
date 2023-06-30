@@ -34,9 +34,17 @@ pub static BUILTINS: Lazy<HashMap<String, BuiltinFunction>> = Lazy::new(|| {
     builtins.insert("last".to_owned(), BuiltinFunction::new(builtin_last));
     builtins.insert("rest".to_owned(), BuiltinFunction::new(builtin_rest));
     builtins.insert("push".to_owned(), BuiltinFunction::new(builtin_push));
+    builtins.insert("puts".to_owned(), BuiltinFunction::new(builtin_puts));
 
     builtins
 });
+
+fn builtin_puts(args: Vec<Objects>) -> Objects {
+    for o in args {
+        println!("{}", o.inspect());
+    }
+    Objects::Null(&NULL)
+}
 
 fn builtin_len(args: Vec<Objects>) -> Objects {
     if args.len() != 1 {

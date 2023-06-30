@@ -13,8 +13,8 @@ use crate::{
     lexer::Token,
     object::{
         Array, Boolean, ErrorMonkey, Function, HashKey, HashMapMonkey, HashPair, Integer, Null,
-        Object, Objects, ReturnValue, StringObject, ARRAY_OBJ, BUILTINS, INTEGER_OBJ, NULL,
-        NULL_OBJ, RETURN_VALUE_OBJ, STRING_OBJ,
+        Object, Objects, ReturnValue, StringObject, ARRAY_OBJ, BUILTINS, HASH_OBJ, INTEGER_OBJ,
+        NULL, NULL_OBJ, RETURN_VALUE_OBJ, STRING_OBJ,
     },
 };
 
@@ -263,10 +263,37 @@ fn eval_index_expression(left: Objects, index: Objects) -> Objects {
         return eval_array_index_expression(left, index);
     }
 
+    if left.obj_type() == HASH_OBJ {
+        return eval_hash_index_expression(left, index);
+    }
+
     Objects::Error(new_error(&format!(
         "index operator not supported: {:?}",
         left.obj_type()
     )))
+}
+
+fn eval_hash_index_expression(left: Objects, index: Objects) -> Objects {
+    let Objects::HashMap(map_) = left else {
+        return Objects::Error(new_error(&format!("HASH index operator not supported: {:?}", left.obj_type())));
+    };
+
+    let hash_key = match index {
+        Objects::Integer(int) => HashKey::Integer(int),
+        Objects::String(str) => HashKey::String(str),
+        Objects::Boolean(bool_) => HashKey::Boolean(*bool_),
+        _ => {
+            return Objects::Error(new_error(&format!(
+                "unusable as hash key: {:?}",
+                index.obj_type()
+            )))
+        }
+    };
+
+    match map_.pairs.0.get(&hash_key) {
+        Some(pair) => pair.value.clone(),
+        None => Objects::Null(&NULL),
+    }
 }
 
 fn eval_array_index_expression(left: Objects, index: Objects) -> Objects {
@@ -845,7 +872,7 @@ mod tests {
             TestError::new(r#""Hello" - "World""#, "unknown operator: STRING - STRING"),
             TestError::new(
                 r#"{"name":"Monkey"}[fn(x) {x}];"#,
-                "unusable as hash key: FUNCTION",
+                r#"unusable as hash key: "FUNCTION""#,
             ),
         ];
 

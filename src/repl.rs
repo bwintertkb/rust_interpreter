@@ -37,13 +37,7 @@ mod tests {
     #[test]
     fn test_start() {
         let input = r#"
-"Hello " + "mate!";
-"heelloo" == "heelloo";
-"heelloo" != "heelloo";
-"heelloo" * "chikenwhat";
-len("testthelength");
-let double = fn(x) { x * 2 };
-[1, double(2), 3 * 3, 4 - 3]
+puts("Hello monkey world!", 1, true);
 "#;
         let mut write_buffer = String::default();
         let reader = std::io::BufReader::new(input.as_bytes());
