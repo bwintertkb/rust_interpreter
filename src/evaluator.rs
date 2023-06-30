@@ -1,19 +1,20 @@
-use std::rc::Rc;
+use std::{collections::HashMap, rc::Rc};
 
 use once_cell::sync::Lazy;
 
 use crate::{
     ast::{
         ArrayLiteral, BlockStatement, Boolean as BooleanLiteral, CallExpression,
-        ExpressionStatement, Expressions, FunctionLiteral, Identifier, IfExpression,
-        IndexExpression, InfixExpression, IntegerLiteral, LetStatement, PrefixExpression, Program,
-        ReturnStatement, Statements, StringLiteral,
+        ExpressionStatement, Expressions, FunctionLiteral, HashMapLiteral, Identifier,
+        IfExpression, IndexExpression, InfixExpression, IntegerLiteral, LetStatement,
+        PrefixExpression, Program, ReturnStatement, Statements, StringLiteral,
     },
     environment::{new_enclosed_environment, Environment},
+    lexer::Token,
     object::{
-        Array, Boolean, ErrorMonkey, Function, Integer, Null, Object, Objects, ReturnValue,
-        StringObject, ARRAY_OBJ, BUILTINS, INTEGER_OBJ, NULL, NULL_OBJ, RETURN_VALUE_OBJ,
-        STRING_OBJ,
+        Array, Boolean, ErrorMonkey, Function, HashKey, HashMapMonkey, HashPair, Integer, Null,
+        Object, Objects, ReturnValue, StringObject, ARRAY_OBJ, BUILTINS, INTEGER_OBJ, NULL,
+        NULL_OBJ, RETURN_VALUE_OBJ, STRING_OBJ,
     },
 };
 
@@ -38,6 +39,7 @@ pub enum Eval {
     String(StringLiteral),
     Array(ArrayLiteral),
     IndexExpression(IndexExpression),
+    HashMap(HashMapLiteral),
 }
 
 impl From<ExpressionStatement> for Eval {
@@ -60,8 +62,31 @@ impl From<Expressions> for Eval {
             Expressions::String(expr) => Eval::String(expr),
             Expressions::Array(expr) => Eval::Array(expr),
             Expressions::Index(idx) => Eval::IndexExpression(*idx),
+            Expressions::HashMap(map_) => Eval::HashMap(map_),
             _ => {
                 panic!("GOT UNSUPPORTED FROM<EXPRESSIONS>, received {:?}", value);
+            }
+        }
+    }
+}
+
+impl From<HashKey> for Eval {
+    fn from(value: HashKey) -> Self {
+        match value {
+            HashKey::Integer(int) => {
+                Eval::IntLit(IntegerLiteral::new(Token::Int(int.value), int.value))
+            }
+            HashKey::Boolean(b) => {
+                let bool_lit = if b.value {
+                    BooleanLiteral::new(Token::True, true)
+                } else {
+                    BooleanLiteral::new(Token::False, false)
+                };
+                Eval::BoolLit(bool_lit)
+            }
+            HashKey::String(s) => Eval::String(StringLiteral::new(s.value)),
+            _ => {
+                panic!("GOT UNSUPPORTED FROM<HASHKEY>, received {:?}", value);
             }
         }
     }
@@ -176,6 +201,7 @@ pub fn eval(node: &Eval, env: &mut Environment) -> Objects {
 
             eval_index_expression(left, index)
         }
+        Eval::HashMap(map_) => eval_hash_literal(map_, env),
     }
 }
 
@@ -196,6 +222,40 @@ fn eval_expressions(expressions: Vec<Expressions>, env: &mut Environment) -> Vec
     }
 
     res
+}
+
+fn eval_hash_literal(map_: &HashMapLiteral, env: &mut Environment) -> Objects {
+    let mut pairs = HashMap::new();
+
+    for (k, v) in map_.pairs.0.iter() {
+        let key = eval(&k.clone().into(), env);
+        if key.is_error() {
+            return key;
+        }
+
+        let hash_key = match key {
+            Objects::Integer(int) => HashKey::Integer(int),
+            Objects::String(str) => HashKey::String(str),
+            Objects::Boolean(bool_) => HashKey::Boolean(*bool_),
+            _ => {
+                return Objects::Error(new_error(&format!(
+                    "unusable as hash key: {:?}",
+                    key.obj_type()
+                )))
+            }
+        };
+        let value = eval(&v.clone().into(), env);
+        if value.is_error() {
+            return value;
+        }
+
+        pairs.insert(
+            hash_key.clone(),
+            HashPair::new(Objects::HashKey(hash_key), value),
+        );
+    }
+
+    Objects::HashMap(HashMapMonkey::new(pairs))
 }
 
 fn eval_index_expression(left: Objects, index: Objects) -> Objects {
@@ -317,7 +377,7 @@ fn eval_block_statements(block: &[Statements], env: &mut Environment) -> Objects
     result
 }
 
-fn native_bool_to_boolean_obj(input: bool) -> &'static Lazy<Boolean> {
+pub fn native_bool_to_boolean_obj(input: bool) -> &'static Lazy<Boolean> {
     if input {
         return &TRUE;
     }
@@ -484,13 +544,14 @@ fn is_truthy(obj: &Objects) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use crate::parser::Parser;
+    use std::collections::HashMap;
+
+    use crate::{object::HashKey, parser::Parser};
 
     use super::*;
 
     fn test_eval(input: &'static str) -> Objects {
         let mut parser = Parser::new(input);
-        println!("parser: {:?}", parser);
         let program = parser.parse_program();
         let mut env = Environment::default();
         eval(&Eval::Program(program), &mut env)
@@ -782,6 +843,10 @@ mod tests {
             ),
             TestError::new("foobar", "identifier not found: foobar"),
             TestError::new(r#""Hello" - "World""#, "unknown operator: STRING - STRING"),
+            TestError::new(
+                r#"{"name":"Monkey"}[fn(x) {x}];"#,
+                "unusable as hash key: FUNCTION",
+            ),
         ];
 
         for t in tests.into_iter() {
@@ -999,6 +1064,85 @@ mod tests {
             ),
             TestArrayIndex::new("[1, 2, 3][3]", ExpectRes::Null),
             TestArrayIndex::new("[1, 2, 3][-1]", ExpectRes::Null),
+        ];
+
+        for t in tests.into_iter() {
+            let evaluated = test_eval(t.input);
+            match t.expected {
+                ExpectRes::Int(expected) => {
+                    assert!(test_integer_object(evaluated, expected));
+                }
+                ExpectRes::Null => {
+                    assert_eq!(evaluated, Objects::Null(&NULL));
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn test_hash_literals() {
+        let input = r#"
+        let two = "two";
+        {
+            "one": 10 - 9,
+            two: 1 + 1,
+            "thr" + "ee": 6 / 2,
+            4: 4,
+            true: 5,
+            false: 6
+        }
+        "#;
+
+        let evaluated = test_eval(input);
+        match evaluated {
+            Objects::HashMap(hash) => {
+                let mut expected = HashMap::new();
+                expected.insert(HashKey::String(StringObject::new("one")), 1);
+                expected.insert(HashKey::String(StringObject::new("two")), 2);
+                expected.insert(HashKey::String(StringObject::new("three")), 3);
+                expected.insert(HashKey::Integer(Integer::new(4)), 4);
+                expected.insert(HashKey::Boolean(Boolean::new(true)), 5);
+                expected.insert(HashKey::Boolean(Boolean::new(false)), 6);
+
+                assert_eq!(hash.pairs.0.len(), expected.len());
+
+                for (key, value) in expected.iter() {
+                    let pair = hash.pairs.0.get(key);
+                    assert!(pair.is_some());
+                    println!("{:?}", pair);
+                    assert!(test_integer_object(pair.unwrap().clone().value, *value));
+                }
+            }
+            _ => panic!("Expected hash, got {:?}", evaluated),
+        }
+    }
+
+    #[test]
+    fn test_hash_index_expressions() {
+        enum ExpectRes {
+            Int(i64),
+            Null,
+        }
+
+        struct TestHashIndex {
+            input: &'static str,
+            expected: ExpectRes,
+        }
+
+        impl TestHashIndex {
+            fn new(input: &'static str, expected: ExpectRes) -> Self {
+                TestHashIndex { input, expected }
+            }
+        }
+
+        let tests = [
+            TestHashIndex::new(r#"{"foo": 5}["foo"]"#, ExpectRes::Int(5)),
+            TestHashIndex::new(r#"{"foo": 5}["bar"]"#, ExpectRes::Null),
+            TestHashIndex::new(r#"let key = "foo"; {"foo": 5}[key]"#, ExpectRes::Int(5)),
+            TestHashIndex::new(r#"{}["foo"]"#, ExpectRes::Null),
+            TestHashIndex::new(r#"{5: 5}[5]"#, ExpectRes::Int(5)),
+            TestHashIndex::new(r#"{true: 5}[true]"#, ExpectRes::Int(5)),
+            TestHashIndex::new(r#"{false: 5}[false]"#, ExpectRes::Int(5)),
         ];
 
         for t in tests.into_iter() {

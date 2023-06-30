@@ -1,10 +1,15 @@
-use std::{collections::HashMap, rc::Rc};
+use std::{
+    collections::{hash_map::DefaultHasher, HashMap},
+    hash::{Hash, Hasher},
+    rc::Rc,
+};
 
 use once_cell::sync::Lazy;
 
 use crate::{
     ast::{BlockStatement, Identifier},
     environment::Environment,
+    evaluator::native_bool_to_boolean_obj,
 };
 
 pub const INTEGER_OBJ: &str = "INTEGER";
@@ -16,6 +21,7 @@ pub const FUNCTION_OBJ: &str = "FUNCTION";
 pub const STRING_OBJ: &str = "STRING";
 pub const BUILTIN_OBJ: &str = "BUILTIN";
 pub const ARRAY_OBJ: &str = "ARRAY";
+pub const HASH_OBJ: &str = "HASH";
 
 pub static NULL: Lazy<Null> = Lazy::new(|| Null {});
 
@@ -147,6 +153,9 @@ pub enum Objects {
     String(StringObject),
     Builtin(BuiltinFunction),
     Array(Array),
+    HashMap(HashMapMonkey),
+    HashKey(HashKey),
+    HashPair(Box<HashPair>),
 }
 
 impl Objects {
@@ -165,6 +174,21 @@ impl Objects {
     pub fn is_function(&self) -> bool {
         matches!(self, Objects::Function(_))
     }
+
+    pub fn hash_value(&self) -> u64 {
+        match self {
+            Objects::Integer(i) => i.value as u64,
+            Objects::Boolean(b) => {
+                if b.value {
+                    1
+                } else {
+                    0
+                }
+            }
+            Objects::String(s) => s.hash_value(),
+            _ => 0,
+        }
+    }
 }
 
 impl Object for Objects {
@@ -179,6 +203,9 @@ impl Object for Objects {
             Objects::String(s) => s.obj_type(),
             Objects::Builtin(b) => b.obj_type(),
             Objects::Array(a) => a.obj_type(),
+            Objects::HashMap(h) => h.obj_type(),
+            Objects::HashKey(h) => h.obj_type(),
+            Objects::HashPair(h) => h.obj_type(),
         }
     }
 
@@ -193,6 +220,9 @@ impl Object for Objects {
             Objects::String(s) => s.inspect(),
             Objects::Builtin(b) => b.inspect(),
             Objects::Array(a) => a.inspect(),
+            Objects::HashMap(h) => h.inspect(),
+            Objects::HashKey(h) => h.inspect(),
+            Objects::HashPair(h) => h.inspect(),
         }
     }
 }
@@ -210,6 +240,10 @@ pub struct Integer {
 impl Integer {
     pub fn new(value: i64) -> Self {
         Integer { value }
+    }
+
+    pub fn hash_value(&self) -> u64 {
+        self.value as u64
     }
 }
 
@@ -264,6 +298,12 @@ impl StringObject {
             value: value.to_owned(),
         }
     }
+
+    pub fn hash_value(&self) -> u64 {
+        let mut s = DefaultHasher::new();
+        self.hash(&mut s);
+        s.finish()
+    }
 }
 
 impl Object for StringObject {
@@ -285,6 +325,14 @@ impl Boolean {
     pub fn new(value: bool) -> Self {
         Boolean { value }
     }
+
+    pub fn hash_value(&self) -> u64 {
+        if self.value {
+            1
+        } else {
+            0
+        }
+    }
 }
 
 impl Object for Boolean {
@@ -294,6 +342,131 @@ impl Object for Boolean {
 
     fn inspect(&self) -> String {
         self.value.to_string()
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct HashPair {
+    pub key: Objects,
+    pub value: Objects,
+}
+
+impl HashPair {
+    pub fn new(key: Objects, value: Objects) -> Self {
+        HashPair { key, value }
+    }
+}
+
+impl Object for HashPair {
+    fn obj_type(&self) -> ObjectType {
+        HASH_OBJ
+    }
+
+    fn inspect(&self) -> String {
+        format!("{}: {}", self.key.inspect(), self.value.inspect())
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub enum HashKey {
+    Integer(Integer),
+    Boolean(Boolean),
+    String(StringObject),
+}
+
+impl From<HashKey> for Objects {
+    fn from(value: HashKey) -> Self {
+        match value {
+            HashKey::Integer(i) => Objects::Integer(i),
+            HashKey::Boolean(b) => {
+                let b_lit = native_bool_to_boolean_obj(b.value);
+
+                Objects::Boolean(b_lit)
+            }
+            HashKey::String(s) => Objects::String(s),
+        }
+    }
+}
+
+impl HashKey {
+    pub fn hash_key(&self) -> u64 {
+        match self {
+            HashKey::Integer(i) => i.hash_value(),
+            HashKey::Boolean(b) => b.hash_value(),
+            HashKey::String(s) => s.hash_value(),
+        }
+    }
+}
+
+impl Object for HashKey {
+    fn obj_type(&self) -> ObjectType {
+        match self {
+            HashKey::Integer(i) => i.obj_type(),
+            HashKey::Boolean(b) => b.obj_type(),
+            HashKey::String(s) => s.obj_type(),
+        }
+    }
+
+    fn inspect(&self) -> String {
+        match self {
+            HashKey::Integer(i) => i.inspect(),
+            HashKey::Boolean(b) => b.inspect(),
+            HashKey::String(s) => s.inspect(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct HashMapMonkey {
+    pub pairs: HashMapMonkeyInner,
+}
+
+impl HashMapMonkey {
+    pub fn new(pairs: HashMap<HashKey, HashPair>) -> Self {
+        HashMapMonkey {
+            pairs: HashMapMonkeyInner::new(pairs),
+        }
+    }
+}
+
+impl Object for HashMapMonkey {
+    fn obj_type(&self) -> ObjectType {
+        HASH_OBJ
+    }
+
+    fn inspect(&self) -> String {
+        let mut s = String::new();
+        s.push('{');
+        let mut pairs: Vec<_> = self.pairs.0.iter().collect();
+        for (i, (k, v)) in pairs.iter().enumerate() {
+            s.push_str(&k.inspect());
+            s.push_str(": ");
+            s.push_str(&v.inspect());
+            if i != pairs.len() - 1 {
+                s.push_str(", ");
+            }
+        }
+        s.push('}');
+        s
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct HashMapMonkeyInner(pub HashMap<HashKey, HashPair>);
+
+impl HashMapMonkeyInner {
+    pub fn new(pairs: HashMap<HashKey, HashPair>) -> Self {
+        HashMapMonkeyInner(pairs)
+    }
+}
+
+impl Hash for HashMapMonkeyInner {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        let keys: Vec<_> = self.0.keys().collect();
+        for key in keys {
+            key.hash(state);
+            self.0.get(key).unwrap().hash(state);
+        }
     }
 }
 
@@ -403,5 +576,41 @@ impl Object for BuiltinFunction {
 
     fn inspect(&self) -> String {
         "builtin function".to_string()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::{
+        collections::hash_map::DefaultHasher,
+        hash::{Hash, Hasher},
+    };
+
+    use super::*;
+
+    #[test]
+    fn test_string_hash_key() {
+        let hello1 = StringObject::new("Hello World");
+        let hello2 = StringObject::new("Hello World");
+        let diff1 = StringObject::new("My name is johnny");
+        let diff2 = StringObject::new("My name is johnny");
+
+        let mut hasher = DefaultHasher::new();
+        hello1.hash(&mut hasher);
+        let r1 = hasher.finish();
+
+        let mut hasher = DefaultHasher::new();
+        hello2.hash(&mut hasher);
+        let r2 = hasher.finish();
+        assert_eq!(r1, r2);
+
+        let mut hasher = DefaultHasher::new();
+        diff1.hash(&mut hasher);
+        let r1 = hasher.finish();
+
+        let mut hasher = DefaultHasher::new();
+        diff2.hash(&mut hasher);
+        let r2 = hasher.finish();
+        assert_eq!(r1, r2);
     }
 }

@@ -105,6 +105,7 @@ impl Token {
             || c == '>'
             || c == '['
             || c == ']'
+            || c == ':'
     }
 
     fn is_numeric(c: char) -> bool {
