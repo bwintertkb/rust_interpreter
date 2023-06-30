@@ -9,9 +9,9 @@ use once_cell::sync::Lazy;
 use crate::{
     ast::{
         ArrayLiteral, BlockStatement, Boolean, CallExpression, ExpressionStatement, Expressions,
-        FunctionLiteral, Identifier, IfExpression, IndexExpression, InfixExpression,
-        IntegerLiteral, LetStatement, PrefixExpression, Program, ReturnStatement, StatementStruct,
-        Statements, StringLiteral,
+        FunctionLiteral, HashMapLiteral, Identifier, IfExpression, IndexExpression,
+        InfixExpression, IntegerLiteral, LetStatement, PrefixExpression, Program, ReturnStatement,
+        StatementStruct, Statements, StringLiteral,
     },
     lexer::{Lexer, Token},
 };
@@ -112,6 +112,7 @@ impl Parser {
         parser.register_prefix(Token::Function.token_literal());
         parser.register_prefix(Token::String(String::default()).token_literal());
         parser.register_prefix(Token::LBracket.token_literal());
+        parser.register_prefix(Token::LBrace.token_literal());
 
         parser.register_infix(Token::Plus.token_literal());
         parser.register_infix(Token::Minus.token_literal());
@@ -517,6 +518,33 @@ impl Parser {
         block
     }
 
+    pub fn parse_hashmap_literal(&mut self) -> HashMapLiteral {
+        let mut hash = HashMapLiteral::default();
+        let mut pairs = HashMap::new();
+
+        while !self.peek_token_is(&Token::RBrace) {
+            self.next_token();
+            let key = self.parse_expression(Iota::Lowest as usize).unwrap();
+            if !self.expect_peek(Token::Colon) {
+                panic!("Parse HashMap Expected Colon");
+            }
+            self.next_token();
+            let value = self.parse_expression(Iota::Lowest as usize).unwrap();
+            pairs.insert(key, value);
+
+            if !self.peek_token_is(&Token::RBrace) && !self.expect_peek(Token::Comma) {
+                panic!("Parse HashMap Expected RBrace or Comma");
+            }
+        }
+
+        if !self.expect_peek(Token::RBrace) {
+            panic!("Parse HashMap Expected RBrace");
+        }
+
+        hash.pairs.0 = pairs;
+        hash
+    }
+
     pub fn parse_expression(&mut self, precedence: usize) -> Option<Expressions> {
         let token = self.curr_token.as_ref().unwrap().clone();
         let prefix_fn = match self.parser_prefix_fn.fns.get(&token.token_literal()) {
@@ -577,6 +605,7 @@ fn parse_prefix_expression(p: &mut Parser) -> Expressions {
         Token::Function => Expressions::Fn(p.parse_function_literal()),
         Token::String(_) => Expressions::String(p.parse_string_literal()),
         Token::LBracket => Expressions::Array(p.parse_array_literal()),
+        Token::LBrace => Expressions::HashMap(p.parse_hashmap_literal()),
         _ => panic!("Not implemented"),
     }
 }
@@ -1031,6 +1060,7 @@ mod tests {
     }
 
     fn test_identifier(expr: Expressions, value: String) -> bool {
+        println!("expr is '{:?}'", expr);
         let ident = if let Expressions::Identifier(ident) = expr {
             ident
         } else {
@@ -1061,6 +1091,7 @@ mod tests {
         String(String),
         Boolean(bool),
         Array(Vec<Expected>),
+        Infix(Box<Expected>, String, Box<Expected>),
     }
 
     fn test_let_statement(stmt: &Statements, name: &str) -> bool {
@@ -1593,6 +1624,143 @@ mod tests {
     }
 
     #[test]
+    fn test_parsing_hash_literals_string_key() {
+        let input: &str = r#"{"one": 1, "two": 2, "three": 3}"#;
+
+        let mut parser = Parser::new(input);
+        let program = parser.parse_program();
+
+        assert!(parser.errors.is_empty());
+        assert_eq!(program.statements.len(), 1);
+
+        let stmt = &program.statements[0];
+
+        let hash = if let Statements::Expression(expr) = stmt {
+            let expr = expr.expression.as_ref().unwrap().clone();
+            if let Expressions::HashMap(hash) = expr {
+                hash
+            } else {
+                panic!("Not expected expression");
+            }
+        } else {
+            panic!("Not expected statement");
+        };
+
+        assert_eq!(hash.pairs.0.len(), 3);
+
+        let mut expected = HashMap::new();
+        expected.insert("one", 1);
+        expected.insert("two", 2);
+        expected.insert("three", 3);
+        for (i, (key, value)) in hash.pairs.0.iter().enumerate() {
+            let Expressions::String(str) = key else {
+                panic!("Not expected expression");
+            };
+
+            let expected_value = expected.get(&str.value[..]).unwrap();
+
+            assert!(test_integer_literal(value.clone(), *expected_value))
+        }
+    }
+
+    #[test]
+    fn test_parsing_empty_hash_literal() {
+        let input: &str = "{}";
+
+        let mut parser = Parser::new(input);
+        let program = parser.parse_program();
+
+        assert!(parser.errors.is_empty());
+        assert_eq!(program.statements.len(), 1);
+
+        let stmt = &program.statements[0];
+
+        let hash = if let Statements::Expression(expr) = stmt {
+            let expr = expr.expression.as_ref().unwrap().clone();
+            if let Expressions::HashMap(hash) = expr {
+                hash
+            } else {
+                panic!("Not expected expression");
+            }
+        } else {
+            panic!("Not expected statement");
+        };
+
+        assert_eq!(hash.pairs.0.len(), 0);
+    }
+
+    #[test]
+    fn test_parse_hash_literal_with_expressions() {
+        let input: &str = r#"{"one": 0 + 1, "two": 10 - 8, "three": 15 / 5}"#;
+
+        let mut parser = Parser::new(input);
+        let program = parser.parse_program();
+
+        assert!(parser.errors.is_empty());
+        assert_eq!(program.statements.len(), 1);
+
+        let stmt = &program.statements[0];
+
+        let hash = if let Statements::Expression(expr) = stmt {
+            let expr = expr.expression.as_ref().unwrap().clone();
+            if let Expressions::HashMap(hash) = expr {
+                hash
+            } else {
+                panic!("Not expected expression");
+            }
+        } else {
+            panic!("Not expected statement");
+        };
+
+        assert_eq!(hash.pairs.0.len(), 3);
+
+        let mut expected_map: HashMap<String, Box<dyn Fn(Expressions) -> ()>> = HashMap::new();
+        expected_map.insert(
+            "one".to_string(),
+            Box::new(|expr| {
+                assert!(test_infix_expression(
+                    expr,
+                    Expected::Int(0),
+                    "+".to_owned(),
+                    Expected::Int(1)
+                ))
+            }),
+        );
+        expected_map.insert(
+            "two".to_string(),
+            Box::new(|expr| {
+                assert!(test_infix_expression(
+                    expr,
+                    Expected::Int(10),
+                    "-".to_owned(),
+                    Expected::Int(8)
+                ))
+            }),
+        );
+        expected_map.insert(
+            "three".to_string(),
+            Box::new(|expr| {
+                assert!(test_infix_expression(
+                    expr,
+                    Expected::Int(15),
+                    "/".to_owned(),
+                    Expected::Int(5)
+                ))
+            }),
+        );
+
+        for (i, (key, value)) in hash.pairs.0.iter().enumerate() {
+            let Expressions::String(str) = key else {
+            panic!("Not expected expression");
+        };
+
+            let test_func = expected_map.get(&str.value[..]).unwrap();
+
+            test_func(value.clone());
+        }
+    }
+
+    #[test]
     fn test_operator_precedence_parsing() {
         struct OperatorPrecendence {
             input: &'static str,
@@ -1651,10 +1819,7 @@ mod tests {
 
         for t in tests.into_iter() {
             let mut parser = Parser::new(t.input);
-            println!("Parsing: {}", t.input);
             let program = parser.parse_program();
-            println!("Program: {:?}", program);
-            println!("Errors: {:?}", parser.errors);
             assert!(parser.errors.is_empty());
 
             let actual = program.string();

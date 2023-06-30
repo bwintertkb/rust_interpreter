@@ -1,3 +1,5 @@
+use std::{collections::HashMap, hash::Hash};
+
 use crate::lexer::Token;
 
 pub trait Node {
@@ -105,6 +107,66 @@ impl IntegerLiteral {
 impl Node for IntegerLiteral {
     fn token_literal(&self) -> String {
         self.token.literal()
+    }
+}
+
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
+pub struct HashMapLiteral {
+    pub token: Token, // The '{' token
+    pub pairs: MonkeyMap,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct MonkeyMap(pub HashMap<Expressions, Expressions>);
+
+impl Hash for MonkeyMap {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        for (k, v) in self.0.iter() {
+            k.hash(state);
+            v.hash(state);
+        }
+    }
+}
+
+impl HashMapLiteral {
+    pub fn new() -> Self {
+        Self {
+            token: Token::LBrace,
+            pairs: MonkeyMap(HashMap::default()),
+        }
+    }
+
+    pub fn string(&self) -> String {
+        let mut string_buffer = String::new();
+
+        let pairs: Vec<String> = self
+            .pairs
+            .0
+            .iter()
+            .map(|(k, v)| format!("{}: {}", k.string(), v.string()))
+            .collect();
+
+        string_buffer.push_str(&self.token_literal());
+        string_buffer.push('{');
+        string_buffer.push_str(&pairs.join(", "));
+        string_buffer.push('}');
+
+        string_buffer
+    }
+}
+
+impl Node for HashMapLiteral {
+    fn token_literal(&self) -> String {
+        self.token.literal()
+    }
+}
+
+impl Default for HashMapLiteral {
+    fn default() -> Self {
+        Self {
+            token: Token::LBrace,
+            pairs: Default::default(),
+        }
     }
 }
 
@@ -554,6 +616,7 @@ pub enum Expressions {
     String(StringLiteral),
     Array(ArrayLiteral),
     Index(Box<IndexExpression>),
+    HashMap(HashMapLiteral),
     TODO,
 }
 
@@ -571,6 +634,7 @@ impl Expressions {
             Expressions::String(str) => str.token_literal(),
             Expressions::Array(expr) => expr.string(),
             Expressions::Index(idx) => idx.string(),
+            Expressions::HashMap(map_) => map_.string(),
             _ => panic!("Not implemented"),
         }
     }

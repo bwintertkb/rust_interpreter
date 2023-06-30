@@ -37,6 +37,7 @@ pub enum Token {
     String(String),
     LBracket,
     RBracket,
+    Colon,
 }
 
 impl Token {
@@ -73,6 +74,7 @@ impl Token {
             Token::String(string) => string.clone(),
             Token::LBracket => "[".to_owned(),
             Token::RBracket => "]".to_owned(),
+            Token::Colon => ":".to_owned(),
         }
     }
 
@@ -155,6 +157,7 @@ impl Token {
             "false" => Token::False,
             "if" => Token::If,
             "else" => Token::Else,
+            ":" => Token::Colon,
             _ => Token::Ident(str_.to_owned()),
         }
     }
@@ -185,6 +188,7 @@ impl From<&str> for Token {
             "!=" => Token::NEqual,
             "fn" => Token::Function,
             "let" => Token::Let,
+            ":" => Token::Colon,
             r"\O" => Token::EOF,
             _ => Token::Illegal,
         }
@@ -372,6 +376,7 @@ impl Serialize for Token {
             }
             Token::LBracket => serializer.serialize_unit_variant(TOKEN_NAME, 28, "LBracket"),
             Token::RBracket => serializer.serialize_unit_variant(TOKEN_NAME, 29, "RBracket"),
+            Token::Colon => serializer.serialize_unit_variant(TOKEN_NAME, 30, "Colon"),
         }
     }
 }
@@ -420,6 +425,7 @@ impl<'de> Visitor<'de> for TokenVisitor {
             ("String", val) => Ok(Token::String(val.newtype_variant()?)),
             ("LBracket", _) => Ok(Token::LBracket),
             ("RBracket", _) => Ok(Token::RBracket),
+            ("Colon", _) => Ok(Token::Colon),
             _ => Err(serde::de::Error::invalid_value(
                 serde::de::Unexpected::UnitVariant,
                 &"expected Token variant",
@@ -428,7 +434,7 @@ impl<'de> Visitor<'de> for TokenVisitor {
     }
 }
 
-const TOKEN_VARIANTS: [&str; 28] = [
+const TOKEN_VARIANTS: [&str; 32] = [
     "Illegal",
     "EOF",
     "Ident",
@@ -457,6 +463,10 @@ const TOKEN_VARIANTS: [&str; 28] = [
     "Equal",
     "NEqual",
     "Not",
+    "String",
+    "LBracket",
+    "RBracket",
+    "Colon",
 ];
 
 impl<'de> Deserialize<'de> for Token {
@@ -819,6 +829,51 @@ if (5 < 10) { return true; } else { return false; } 10 == 10; 10 != 9;
             Token::NEqual,
             Token::Int(9),
             Token::Semicolon,
+            Token::EOF,
+        ];
+        let mut lexer = Lexer::new(input.to_owned());
+        assert_eq!(lexer.tokens(), expected);
+    }
+
+    #[test]
+    fn test_hash_maps() {
+        let input = r#"{"food": "bar"}"#;
+        let expected = [
+            Token::LBrace,
+            Token::String("food".to_owned()),
+            Token::Colon,
+            Token::String("bar".to_owned()),
+            Token::RBrace,
+            Token::EOF,
+        ];
+
+        let mut lexer = Lexer::new(input.to_owned());
+        assert_eq!(lexer.tokens(), expected);
+    }
+
+    #[test]
+    fn test_hash_maps2() {
+        let input = r#"{"one": 0 + 1, "two": 10 - 8, "three": 15 / 5}"#;
+        let expected = [
+            Token::LBrace,
+            Token::String("one".to_owned()),
+            Token::Colon,
+            Token::Int(0),
+            Token::Plus,
+            Token::Int(1),
+            Token::Comma,
+            Token::String("two".to_owned()),
+            Token::Colon,
+            Token::Int(10),
+            Token::Minus,
+            Token::Int(8),
+            Token::Comma,
+            Token::String("three".to_owned()),
+            Token::Colon,
+            Token::Int(15),
+            Token::Slash,
+            Token::Int(5),
+            Token::RBrace,
             Token::EOF,
         ];
         let mut lexer = Lexer::new(input.to_owned());
