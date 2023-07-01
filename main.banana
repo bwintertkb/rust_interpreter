@@ -1,0 +1,16 @@
+puts("Monkey see monkey do! Banana");
+
+let a = fn(x) {
+    let b = fn(y) {
+        if (y < 10) {
+            return b(y + 1);
+        } else {
+            return y + 8;
+        }
+    };
+    b(x)
+};
+
+
+puts(a(1));
+

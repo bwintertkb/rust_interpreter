@@ -1,4 +1,4 @@
-use std::{collections::HashMap, rc::Rc};
+use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
 use once_cell::sync::Lazy;
 
@@ -12,9 +12,9 @@ use crate::{
     environment::{new_enclosed_environment, Environment},
     lexer::Token,
     object::{
-        Array, Boolean, ErrorMonkey, Function, HashKey, HashMapMonkey, HashPair, Integer, Null,
-        Object, Objects, ReturnValue, StringObject, ARRAY_OBJ, BUILTINS, HASH_OBJ, INTEGER_OBJ,
-        NULL, NULL_OBJ, RETURN_VALUE_OBJ, STRING_OBJ,
+        Array, Boolean, ErrorMonkey, Function, HashKey, HashMapMonkey, HashPair, Integer, Object,
+        Objects, ReturnValue, StringObject, ARRAY_OBJ, BUILTINS, HASH_OBJ, INTEGER_OBJ, NULL,
+        STRING_OBJ,
     },
 };
 
@@ -116,7 +116,7 @@ impl From<Identifier> for Eval {
     }
 }
 
-pub fn eval(node: &Eval, env: &mut Environment) -> Objects {
+pub fn eval(node: &Eval, env: &Rc<RefCell<Environment>>) -> Objects {
     match node {
         Eval::Identifier(ref ident) => eval_identifier(ident, env),
         Eval::Program(ref program) => eval_program(&program.statements, env),
@@ -159,20 +159,22 @@ pub fn eval(node: &Eval, env: &mut Environment) -> Objects {
             if val.is_error() {
                 return val;
             }
-            env.set(let_.name.string(), val);
+
+            env.borrow_mut().set(let_.name.string(), val);
+
             Objects::Null(&NULL)
         }
         Eval::Function(func) => {
             let params = func.parameters.clone();
             let body = func.body.clone();
-            Objects::Function(Function::new(params, body, Rc::new(env.clone())))
+
+            Objects::Function(Function::new(params, body, env.clone()))
         }
         Eval::CallExpression(expr) => {
             let func = eval(&expr.function.clone().into(), env);
             if func.is_error() {
                 return func;
             }
-
             let args = eval_expressions(expr.arguments.clone(), env);
             if args.len() == 1 && args[0].is_error() {
                 return args[0].clone();
@@ -209,7 +211,7 @@ fn new_error(message: &str) -> ErrorMonkey {
     ErrorMonkey::new(message)
 }
 
-fn eval_expressions(expressions: Vec<Expressions>, env: &mut Environment) -> Vec<Objects> {
+fn eval_expressions(expressions: Vec<Expressions>, env: &Rc<RefCell<Environment>>) -> Vec<Objects> {
     let mut res: Vec<Objects> = Vec::new();
 
     for expr in expressions.iter() {
@@ -220,15 +222,14 @@ fn eval_expressions(expressions: Vec<Expressions>, env: &mut Environment) -> Vec
             return res;
         }
     }
-
     res
 }
 
-fn eval_hash_literal(map_: &HashMapLiteral, env: &mut Environment) -> Objects {
+fn eval_hash_literal(map_: &HashMapLiteral, env: &Rc<RefCell<Environment>>) -> Objects {
     let mut pairs = HashMap::new();
 
     for (k, v) in map_.pairs.0.iter() {
-        let key = eval(&k.clone().into(), env);
+        let key = eval(&k.clone().into(), &env);
         if key.is_error() {
             return key;
         }
@@ -318,7 +319,7 @@ fn apply_function(func: Objects, args: Vec<Objects>) -> Objects {
     match func {
         Objects::Function(func) => {
             let mut extended_env = extend_function_env(&func, args);
-            let evaluated = eval(&func.body.into(), &mut extended_env);
+            let evaluated = eval(&func.body.into(), &extended_env);
             unwrap_return_value(evaluated)
         }
         Objects::Builtin(b) => (b.func)(args),
@@ -326,10 +327,10 @@ fn apply_function(func: Objects, args: Vec<Objects>) -> Objects {
     }
 }
 
-fn extend_function_env(func: &Function, args: Vec<Objects>) -> Environment {
-    let mut env = new_enclosed_environment(func.env.clone());
+fn extend_function_env(func: &Function, args: Vec<Objects>) -> Rc<RefCell<Environment>> {
+    let mut env = new_enclosed_environment(func.env.0.clone());
     for (idx, ident) in func.parameters.iter().enumerate() {
-        env.set(ident.value.clone(), args[idx].clone());
+        env.borrow_mut().set(ident.value.clone(), args[idx].clone());
     }
     env
 }
@@ -341,8 +342,8 @@ fn unwrap_return_value(obj: Objects) -> Objects {
     obj
 }
 
-fn eval_identifier(ident: &Identifier, env: &mut Environment) -> Objects {
-    if let Some(val) = env.get(&ident.string()) {
+fn eval_identifier(ident: &Identifier, env: &Rc<RefCell<Environment>>) -> Objects {
+    if let Some(val) = env.borrow().get(&ident.string()) {
         return val;
     }
 
@@ -356,7 +357,7 @@ fn eval_identifier(ident: &Identifier, env: &mut Environment) -> Objects {
     )))
 }
 
-fn eval_program(statements: &[Statements], env: &mut Environment) -> Objects {
+fn eval_program(statements: &[Statements], env: &Rc<RefCell<Environment>>) -> Objects {
     let mut result = Objects::Null(&NULL);
     for s in statements.iter() {
         let expr = match s {
@@ -379,7 +380,7 @@ fn eval_program(statements: &[Statements], env: &mut Environment) -> Objects {
     result
 }
 
-fn eval_block_statements(block: &[Statements], env: &mut Environment) -> Objects {
+fn eval_block_statements(block: &[Statements], env: &Rc<RefCell<Environment>>) -> Objects {
     let mut result = Objects::Null(&NULL);
 
     for s in block.iter() {
@@ -390,7 +391,7 @@ fn eval_block_statements(block: &[Statements], env: &mut Environment) -> Objects
             _ => panic!("Expected ExpressionStatement"),
         };
 
-        result = eval(&expr, env);
+        result = eval(&expr, &env);
 
         if !result.is_null() && (result.is_error() || result.is_return()) {
             if let Objects::ReturnValue(ref r) = result {
@@ -513,7 +514,7 @@ fn eval_integer_infix_expression(operator: &str, left: Integer, right: Integer) 
     }
 }
 
-fn eval_if_expression(expr: &IfExpression, env: &mut Environment) -> Objects {
+fn eval_if_expression(expr: &IfExpression, env: &Rc<RefCell<Environment>>) -> Objects {
     let expr_cond: Eval = expr.condition.clone().into();
     let condition = eval(&expr_cond, env);
     //
@@ -580,8 +581,8 @@ mod tests {
     fn test_eval(input: &'static str) -> Objects {
         let mut parser = Parser::new(input);
         let program = parser.parse_program();
-        let mut env = Environment::default();
-        eval(&Eval::Program(program), &mut env)
+        let mut env = Environment::new();
+        eval(&Eval::Program(program), &env)
     }
 
     fn test_integer_object(obj: Objects, expected: i64) -> bool {
@@ -970,6 +971,22 @@ mod tests {
     }
 
     #[test]
+    fn test_function_recursion() {
+        let input = r#"
+        let countDown = fn(x) {
+            if (x == 0) {
+                100
+            } else {
+                countDown(x - 1)
+            }
+        };
+        countDown(3);
+        "#;
+
+        assert!(test_integer_object(test_eval(input), 100));
+    }
+
+    #[test]
     fn test_string_literal() {
         let input = r#""Hello World!""#;
         let evaluated = test_eval(input);
@@ -1136,7 +1153,6 @@ mod tests {
                 for (key, value) in expected.iter() {
                     let pair = hash.pairs.0.get(key);
                     assert!(pair.is_some());
-                    println!("{:?}", pair);
                     assert!(test_integer_object(pair.unwrap().clone().value, *value));
                 }
             }

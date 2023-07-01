@@ -1,15 +1,15 @@
-use std::{collections::HashMap, hash::Hash, rc::Rc};
+use std::{cell::RefCell, collections::HashMap, hash::Hash, rc::Rc};
 
-use crate::object::Objects;
+use crate::object::{EnvCell, Objects};
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Hash)]
 pub struct Environment {
     pub store: Map,
-    pub outer: Option<Rc<Environment>>,
+    pub outer: Option<EnvCell>,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub struct Map(HashMap<String, Objects>);
+pub struct Map(pub HashMap<String, Objects>);
 
 impl Hash for Map {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
@@ -21,15 +21,15 @@ impl Hash for Map {
 }
 
 impl Environment {
-    pub fn new() -> Self {
-        Self::default()
+    pub fn new() -> Rc<RefCell<Self>> {
+        Rc::new(RefCell::new(Self::default()))
     }
 
     pub fn get(&self, key: &str) -> Option<Objects> {
         let mut obj = self.store.0.get(key).cloned();
 
         if obj.is_none() && self.outer.is_some() {
-            obj = self.outer.clone().unwrap().as_ref().get(key);
+            obj = self.outer.clone().unwrap().0.as_ref().borrow().get(key);
         }
         obj
     }
@@ -40,8 +40,9 @@ impl Environment {
     }
 }
 
-pub fn new_enclosed_environment(outer: Rc<Environment>) -> Environment {
-    let mut env = Environment::default();
-    env.outer = Some(outer.clone());
-    env
+pub fn new_enclosed_environment(outer: Rc<RefCell<Environment>>) -> Rc<RefCell<Environment>> {
+    Rc::new(RefCell::new(Environment {
+        outer: Some(EnvCell(outer)),
+        ..Default::default()
+    }))
 }

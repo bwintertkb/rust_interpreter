@@ -1,4 +1,5 @@
 use std::{
+    cell::RefCell,
     collections::{hash_map::DefaultHasher, HashMap},
     hash::{Hash, Hasher},
     rc::Rc,
@@ -539,15 +540,28 @@ impl Object for ErrorMonkey {
 pub struct Function {
     pub parameters: Vec<Identifier>,
     pub body: BlockStatement,
-    pub env: Rc<Environment>,
+    pub env: EnvCell,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct EnvCell(pub Rc<RefCell<Environment>>);
+
+impl Hash for EnvCell {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.0.borrow().hash(state);
+    }
 }
 
 impl Function {
-    pub fn new(parameters: Vec<Identifier>, body: BlockStatement, env: Rc<Environment>) -> Self {
+    pub fn new(
+        parameters: Vec<Identifier>,
+        body: BlockStatement,
+        env: Rc<RefCell<Environment>>,
+    ) -> Self {
         Function {
             parameters,
             body,
-            env,
+            env: EnvCell(env),
         }
     }
 }
