@@ -229,7 +229,7 @@ fn eval_hash_literal(map_: &HashMapLiteral, env: &Rc<RefCell<Environment>>) -> O
     let mut pairs = HashMap::new();
 
     for (k, v) in map_.pairs.0.iter() {
-        let key = eval(&k.clone().into(), &env);
+        let key = eval(&k.clone().into(), env);
         if key.is_error() {
             return key;
         }
@@ -318,7 +318,7 @@ fn eval_array_index_expression(left: Objects, index: Objects) -> Objects {
 fn apply_function(func: Objects, args: Vec<Objects>) -> Objects {
     match func {
         Objects::Function(func) => {
-            let mut extended_env = extend_function_env(&func, args);
+            let extended_env = extend_function_env(&func, args);
             let evaluated = eval(&func.body.into(), &extended_env);
             unwrap_return_value(evaluated)
         }
@@ -328,7 +328,7 @@ fn apply_function(func: Objects, args: Vec<Objects>) -> Objects {
 }
 
 fn extend_function_env(func: &Function, args: Vec<Objects>) -> Rc<RefCell<Environment>> {
-    let mut env = new_enclosed_environment(func.env.0.clone());
+    let env = new_enclosed_environment(func.env.0.clone());
     for (idx, ident) in func.parameters.iter().enumerate() {
         env.borrow_mut().set(ident.value.clone(), args[idx].clone());
     }
@@ -391,7 +391,7 @@ fn eval_block_statements(block: &[Statements], env: &Rc<RefCell<Environment>>) -
             _ => panic!("Expected ExpressionStatement"),
         };
 
-        result = eval(&expr, &env);
+        result = eval(&expr, env);
 
         if !result.is_null() && (result.is_error() || result.is_return()) {
             if let Objects::ReturnValue(ref r) = result {
@@ -581,7 +581,7 @@ mod tests {
     fn test_eval(input: &'static str) -> Objects {
         let mut parser = Parser::new(input);
         let program = parser.parse_program();
-        let mut env = Environment::new();
+        let env = Environment::new();
         eval(&Eval::Program(program), &env)
     }
 

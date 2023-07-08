@@ -446,7 +446,7 @@ impl Object for HashMapMonkey {
     fn inspect(&self) -> String {
         let mut s = String::new();
         s.push('{');
-        let mut pairs: Vec<_> = self.pairs.0.iter().collect();
+        let pairs: Vec<_> = self.pairs.0.iter().collect();
         for (i, (k, v)) in pairs.iter().enumerate() {
             s.push_str(&k.inspect());
             s.push_str(": ");

@@ -13,7 +13,7 @@ fn main() {
     for line in reader.lines() {
         source.push_str(&line.unwrap());
     }
-    let mut env = Environment::new();
+    let env = Environment::new();
     let mut parser = Parser::new(&source);
     let program = parser.parse_program();
     eval(&Eval::Program(program), &env);

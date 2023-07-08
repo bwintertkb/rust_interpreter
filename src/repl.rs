@@ -8,7 +8,7 @@ use crate::{
 const PROMPT: &str = ">>";
 
 pub fn start(mut in_: impl std::io::BufRead, out: &mut String) {
-    let mut env = Environment::new();
+    let env = Environment::new();
     loop {
         let mut line = String::new();
         in_.read_line(&mut line).unwrap();

@@ -20,5 +20,5 @@ let fib = fn(x) {
 
 let b = [1, "hello", 99];
 
-puts(fib(1));
+puts(fib(8));
 

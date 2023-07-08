@@ -270,7 +270,7 @@ impl Parser {
 
     pub fn parse_return_statements(&mut self) -> Result<Statements, ParseError> {
         let curr_token = self.curr_token.clone().unwrap();
-        let curr_token_literal = curr_token.literal();
+        let _curr_token_literal = curr_token.literal();
 
         self.next_token();
         let return_value = self.parse_expression(Iota::Lowest as usize);
@@ -650,7 +650,7 @@ impl Error for ParseError {}
 
 #[cfg(test)]
 mod tests {
-    use crate::{ast::Node, parser};
+    use crate::{ast::Node};
 
     use super::*;
 
@@ -1652,7 +1652,7 @@ mod tests {
         expected.insert("one", 1);
         expected.insert("two", 2);
         expected.insert("three", 3);
-        for (i, (key, value)) in hash.pairs.0.iter().enumerate() {
+        for (_i, (key, value)) in hash.pairs.0.iter().enumerate() {
             let Expressions::String(str) = key else {
                 panic!("Not expected expression");
             };
@@ -1714,7 +1714,7 @@ mod tests {
 
         assert_eq!(hash.pairs.0.len(), 3);
 
-        let mut expected_map: HashMap<String, Box<dyn Fn(Expressions) -> ()>> = HashMap::new();
+        let mut expected_map: HashMap<String, Box<dyn Fn(Expressions)>> = HashMap::new();
         expected_map.insert(
             "one".to_string(),
             Box::new(|expr| {
@@ -1749,7 +1749,7 @@ mod tests {
             }),
         );
 
-        for (i, (key, value)) in hash.pairs.0.iter().enumerate() {
+        for (_i, (key, value)) in hash.pairs.0.iter().enumerate() {
             let Expressions::String(str) = key else {
             panic!("Not expected expression");
         };
