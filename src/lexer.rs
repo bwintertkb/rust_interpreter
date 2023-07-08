@@ -88,68 +88,7 @@ impl Token {
         }
     }
 
-    fn is_special_char(c: char) -> bool {
-        c == '='
-            || c == '+'
-            || c == ','
-            || c == ';'
-            || c == '('
-            || c == ')'
-            || c == '{'
-            || c == '}'
-            || c == '*'
-            || c == '/'
-            || c == '!'
-            || c == '-'
-            || c == '<'
-            || c == '>'
-            || c == '['
-            || c == ']'
-            || c == ':'
-    }
-
-    fn is_numeric(c: char) -> bool {
-        c.is_numeric()
-    }
-
-    fn is_quote(c: char) -> bool {
-        c == '"'
-    }
-
-    fn is_char(c: char) -> bool {
-        !Token::is_dot(c)
-            && !Token::is_special_char(c)
-            && !Token::is_numeric(c)
-            && !Token::is_end(c)
-            && !Token::is_space(c)
-    }
-
-    fn is_dot(c: char) -> bool {
-        c == '.'
-    }
-
-    fn is_end(c: char) -> bool {
-        c == '\0'
-    }
-
-    fn is_left_bracket(c: char) -> bool {
-        c == '['
-    }
-
-    fn is_right_bracket(c: char) -> bool {
-        c == ']'
-    }
-
-    fn is_special_double_char(c_curr: char, c_next: char) -> bool {
-        (c_curr == '!' || c_curr == '=') && c_next == '='
-    }
-
-    fn from_number(str_: &str) -> Token {
-        let int = str_.parse::<i64>().unwrap();
-        Token::Int(int)
-    }
-
-    fn from_chars(str_: &str) -> Token {
+    fn from_str(str_: &str) -> Token {
         match str_ {
             "fn" => Token::Function,
             "let" => Token::Let,
@@ -158,40 +97,7 @@ impl Token {
             "false" => Token::False,
             "if" => Token::If,
             "else" => Token::Else,
-            ":" => Token::Colon,
             _ => Token::Ident(str_.to_owned()),
-        }
-    }
-
-    fn is_space(c: char) -> bool {
-        c == ' ' || c == '\t' || c == '\n' || c == '\r'
-    }
-}
-
-impl From<&str> for Token {
-    fn from(s: &str) -> Self {
-        match s {
-            "=" => Token::Assign,
-            "+" => Token::Plus,
-            "-" => Token::Minus,
-            "*" => Token::Asterisk,
-            "/" => Token::Slash,
-            "," => Token::Comma,
-            ";" => Token::Semicolon,
-            "(" => Token::LParen,
-            ")" => Token::RParen,
-            "{" => Token::LBrace,
-            "}" => Token::RBrace,
-            "!" => Token::Bang,
-            "<" => Token::LessThan,
-            ">" => Token::GreaterThan,
-            "==" => Token::Equal,
-            "!=" => Token::NEqual,
-            "fn" => Token::Function,
-            "let" => Token::Let,
-            ":" => Token::Colon,
-            r"\O" => Token::EOF,
-            _ => Token::Illegal,
         }
     }
 }
@@ -238,7 +144,7 @@ impl Lexer {
         }
     }
 
-    fn tokens(&mut self) -> Vec<Token> {
+    pub fn tokens(&mut self) -> Vec<Token> {
         let mut token = self.next_token();
         let mut tokens = vec![token];
 
@@ -250,90 +156,121 @@ impl Lexer {
     }
 
     pub fn next_token(&mut self) -> Token {
-        let mut char_buffer: Vec<u8> = Vec::with_capacity(self.input.len());
-        while Token::is_space(self.ch as char) && !Token::is_end(self.ch as char) {
+        while let ' ' | '\t' | '\n' | '\r' = self.ch as char {
             self.read_char();
         }
-
-        if Token::is_left_bracket(self.ch as char) {
-            self.read_char();
-            return Token::LBracket;
-        }
-
-        if Token::is_right_bracket(self.ch as char) {
-            self.read_char();
-            return Token::RBracket;
-        }
-
-        if Token::is_special_char(self.ch as char) {
-            char_buffer.push(self.ch);
-            if Token::is_special_double_char(self.ch as char, self.next_char() as char) {
+        let char = self.ch as char;
+        match char {
+            '=' => {
                 self.read_char();
-                char_buffer.push(self.ch);
-            }
-            let str_ = String::from_utf8(char_buffer).unwrap();
-            let token = Token::from(&str_[..]);
-            self.read_char();
-            return token;
-        }
-
-        if Token::is_quote(self.ch as char) {
-            self.read_char();
-            let token = if Token::is_quote(self.ch as char) {
-                // Empty string
-                self.read_char();
-                Token::String(String::default())
-            } else {
-                char_buffer.push(self.ch);
-                while !Token::is_quote(self.next_char() as char)
-                    && !Token::is_end(self.next_char() as char)
-                {
+                if self.ch == b'=' {
                     self.read_char();
-                    char_buffer.push(self.ch);
+                    return Token::Equal;
                 }
-                let str_ = String::from_utf8(char_buffer).unwrap();
-                self.read_char();
-                self.read_char();
-                Token::String(str_)
-            };
-            return token;
-        }
-
-        // Check if it's a number, including floating point
-        if Token::is_numeric(self.ch as char)
-            || (Token::is_dot(self.ch as char) && Token::is_numeric(self.next_char() as char))
-        {
-            char_buffer.push(self.ch);
-            self.read_char();
-            while Token::is_numeric(self.ch as char) || Token::is_dot(self.ch as char) {
-                char_buffer.push(self.ch);
-                self.read_char();
+                Token::Assign
             }
-            let str_ = String::from_utf8(char_buffer).unwrap();
-            let token = Token::from_number(&str_[..]);
-            return token;
-        }
-
-        // Check non-numeric or special characters
-        if Token::is_char(self.ch as char) {
-            char_buffer.push(self.ch);
-            self.read_char();
-            while !Token::is_space(self.ch as char)
-                && !Token::is_special_char(self.ch as char)
-                && !Token::is_end(self.ch as char)
-            {
-                char_buffer.push(self.ch);
+            '+' => {
                 self.read_char();
+                Token::Plus
             }
-            let str_ = String::from_utf8(char_buffer).unwrap();
-            let token = Token::from_chars(&str_[..]);
-            return token;
-        }
+            '-' => {
+                self.read_char();
+                Token::Minus
+            }
+            '*' => {
+                self.read_char();
+                Token::Asterisk
+            }
+            '/' => {
+                self.read_char();
+                Token::Slash
+            }
+            ',' => {
+                self.read_char();
+                Token::Comma
+            }
+            ';' => {
+                self.read_char();
+                Token::Semicolon
+            }
+            ':' => {
+                self.read_char();
+                Token::Colon
+            }
+            '(' => {
+                self.read_char();
+                Token::LParen
+            }
+            ')' => {
+                self.read_char();
+                Token::RParen
+            }
+            '{' => {
+                self.read_char();
+                Token::LBrace
+            }
+            '}' => {
+                self.read_char();
+                Token::RBrace
+            }
+            '[' => {
+                self.read_char();
+                Token::LBracket
+            }
+            ']' => {
+                self.read_char();
+                Token::RBracket
+            }
+            '!' => {
+                self.read_char();
+                if self.ch == b'=' {
+                    self.read_char();
+                    return Token::NEqual;
+                }
+                Token::Bang
+            }
+            '<' => {
+                self.read_char();
+                Token::LessThan
+            }
+            '>' => {
+                self.read_char();
+                Token::GreaterThan
+            }
+            '"' | '\'' => {
+                self.read_char();
+                let mut buffer = String::default();
+                while self.ch != b'"' && self.ch != b'\'' {
+                    buffer.push(self.ch as char);
+                    self.read_char();
+                }
 
-        if Token::is_end(self.ch as char) {
-            return Token::EOF;
+                self.read_char();
+                Token::String(buffer)
+            }
+            '\0' => Token::EOF,
+            '0'..='9' => {
+                let mut buffer = String::default();
+                buffer.push(char);
+                self.read_char();
+                while (self.ch as char).is_numeric() {
+                    buffer.push(self.ch as char);
+                    self.read_char();
+                }
+                Token::Int(buffer.parse::<i64>().unwrap())
+            }
+            'a'..='z' | 'A'..='Z' | '_' => {
+                let mut buffer = String::default();
+                buffer.push(char);
+                self.read_char();
+                while (self.ch as char).is_alphanumeric() || self.ch == b'_' {
+                    buffer.push(self.ch as char);
+                    self.read_char();
+                }
+                Token::from_str(&buffer)
+            }
+            _ => Token::Illegal,
         }
-        Token::Illegal
     }
 }
 
